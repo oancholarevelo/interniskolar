@@ -24,3 +24,22 @@ yarn-error.log*
 
 # Ignore environment variables file
 .env
+
+# Firebase service account keys (IMPORTANT: Keep these secret!)
+*-service-account-key.json
+your-service-account-key.json
+
+# Excel data files (optional - if you don't want to commit data)
+*.xlsx
+*.xls
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.venv/
