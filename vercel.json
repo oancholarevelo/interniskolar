@@ -17,6 +17,12 @@
     { "src": "/favicon.ico", "dest": "/favicon.ico" },
     { "src": "/asset-manifest.json", "dest": "/asset-manifest.json" },
     { "src": "/manifest.json", "dest": "/manifest.json" },
+    { "src": "/og-image.png", "dest": "/og-image.png" },
+    { "src": "/og-image.svg", "dest": "/og-image.svg" },
+    { "src": "/logo192.png", "dest": "/logo192.png" },
+    { "src": "/logo512.png", "dest": "/logo512.png" },
+    { "src": "/robots.txt", "dest": "/robots.txt" },
+    { "src": "/templates/(.*)", "dest": "/templates/$1" },
     { "src": "/service-worker.js", "headers": { "cache-control": "s-maxage=0" }, "dest": "/service-worker.js" },
     { "src": "/sockjs-node/(.*)", "dest": "/sockjs-node/$1" },
     { "src": "/(.*)", "headers": {"cache-control": "s-maxage=0"}, "dest": "/index.html" }
