@@ -759,7 +759,7 @@ body {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(25, 34, 49, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -778,11 +778,11 @@ body {
 
 .modal-content {
   background-color: white;
-  border-radius: 0.5rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border-radius: 0.75rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   width: 100%;
-  max-width: 500px;
-  max-height: calc(100vh - 2rem);
+  max-width: 550px;
+  max-height: calc(100vh - 4rem);
   display: flex;
   flex-direction: column;
   margin: auto;
@@ -793,14 +793,16 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
+  padding: 1rem 1.5rem;
   border-bottom: 1px solid var(--medium-gray);
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 600;
   margin: 0;
+  color: var(--dark-gray);
 }
 
 .close-btn {
@@ -809,40 +811,65 @@ body {
   background: none;
   border: none;
   cursor: pointer;
+  color: var(--secondary-color);
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .close-btn:hover {
-  background-color: var(--medium-gray);
+  background-color: var(--light-gray);
+  color: var(--dark-gray);
 }
 
+/* The main body of the modal where the form resides */
 .modal-body {
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
+  gap: 1.25rem; 
+
+  /* --- CRITICAL FIXES FOR SCROLLING --- */
+  flex-grow: 1; /* Allows the body to expand and fill the space between the header and footer. */
+  overflow-y: auto; /* This is the key: Makes ONLY the body scrollable when content is too tall. */
+  min-height: 0; /* A necessary flexbox hack to make overflow-y work correctly in a flex child. */
+  /* ------------------------------------ */
 }
 
+/* Styling for each form group (label + input) */
 .modal-body div {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0; /* Prevents form groups from shrinking, which can cause layout issues. */
 }
 
 .modal-body label {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--secondary-color);
+  color: #374151; 
 }
 
 .modal-body input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.5rem 0.75rem;
+  padding: 0.65rem 0.85rem;
   border: 1px solid var(--medium-gray);
   border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.modal-body input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+/* Ensure the form itself doesn't have conflicting styles */
+.modal-content form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Apply to form as well to ensure it respects the flex container's boundaries */
+    flex-grow: 1;
 }
 
 .modal-footer {
@@ -853,7 +880,8 @@ body {
   gap: 0.75rem;
   border-top: 1px solid var(--medium-gray);
   flex-shrink: 0;
-  margin-top: auto;
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
 }
 
 /* --- Templates Page --- */

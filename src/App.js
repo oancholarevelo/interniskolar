@@ -92,6 +92,7 @@ export default function App() {
     contactPerson: "",
     contactNumber: "",
     email: "",
+    natureOfBusiness: "",
     moaEndDate: "",
     course: "",
     moaLink: "",
@@ -187,6 +188,7 @@ export default function App() {
         contactPerson: hte.contactPerson || "",
         contactNumber: hte.contactNumber || "",
         email: hte.email || "",
+        natureOfBusiness: hte.natureOfBusiness || "",
         course: hte.course || "",
         moaEndDate: hte.moaEndDate?.toDate().toISOString().split("T")[0] || "",
         moaLink: hte.moaLink || "",
@@ -199,6 +201,7 @@ export default function App() {
         contactPerson: "",
         contactNumber: "",
         email: "",
+        natureOfBusiness: "",
         moaEndDate: "",
         course: "",
         moaLink: "",
@@ -259,10 +262,12 @@ export default function App() {
   const filteredHtes = htes.filter((hte) => {
     const name = hte.name || "";
     const address = hte.address || "";
+    const natureOfBusiness = hte.natureOfBusiness || "";
     const hteCourses = (hte.course || "").split(/[/,]/).map(normalizeCourse);
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      address.toLowerCase().includes(searchTerm.toLowerCase());
+      address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      natureOfBusiness.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCourse =
       selectedCourse === "All" ||
       hteCourses.includes(normalizeCourse(selectedCourse));
@@ -725,7 +730,7 @@ function Dashboard({
           <Search className="search-icon" />
           <input
             type="text"
-            placeholder="Search by company name or address..."
+            placeholder="Search by company name, address, or nature of business..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
@@ -844,6 +849,11 @@ function HteCard({
             {hte.contactNumber || "N/A"} | {hte.email || "N/A"}
           </span>
         </p>
+        {hte.natureOfBusiness && (
+          <p>
+            <Building size={16} /> <span>{hte.natureOfBusiness}</span>
+          </p>
+        )}
         <p>
           <BookOpen size={16} /> <span>{hte.course || "Any Course"}</span>
         </p>
@@ -1041,6 +1051,17 @@ function HteFormModal({
                 value={formData.address}
                 onChange={handleFormChange}
                 required
+              />
+            </div>
+            <div>
+              <label htmlFor="natureOfBusiness">Nature of Business</label>
+              <input
+                type="text"
+                name="natureOfBusiness"
+                id="natureOfBusiness"
+                value={formData.natureOfBusiness}
+                onChange={handleFormChange}
+                placeholder="e.g., IT Services, Manufacturing, Healthcare"
               />
             </div>
             <div>
