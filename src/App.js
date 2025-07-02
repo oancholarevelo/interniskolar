@@ -47,6 +47,7 @@ import {
   Briefcase,
   ExternalLink,
 } from "lucide-react";
+import { Analytics } from "@vercel/analytics/react";
 import "./App.css";
 
 // --- Firebase Configuration ---
@@ -335,6 +336,7 @@ export default function App() {
           editingHte={editingHte}
         />
       )}
+      <Analytics />
     </div>
   );
 }
