@@ -9,19 +9,67 @@ A comprehensive web application for managing On-the-Job Training (OJT) opportuni
 ## 🌟 Features
 
 ### For Students
-- **🔍 Search & Filter**: Find internship opportunities by company name, location, or course
-- **⭐ Shortlist**: Save interesting companies for easy access later
-- **📧 Quick Apply**: Generate personalized Gmail drafts with resume links
-- **📄 Profile Management**: Upload resume and manage personal information
-- **📋 Templates**: Download essential OJT documents and forms
-- **🔐 Secure Authentication**: Login with PUP email addresses only
+- **🔍 Advanced Search & Filtering**: Multi-criteria search by company name, address, nature of business, and course specialization
+- **📊 Application Status Tracker**: Track your application progress with 5 detailed status levels:
+  - 🤍 Interested - Companies you want to apply to
+  - 📤 Applied - Applications you've submitted
+  - 💬 Interviewing - Companies currently interviewing you
+  - ✅ Offer Received - Companies that have made offers
+  - ❌ Rejected - Applications that were unsuccessful
+- **📱 My Applications**: Organized dashboard grouping all tracked applications by status with:
+  - Collapsible sections for better organization
+  - Expand/collapse all functionality
+  - Application count tracking
+  - Status-specific company lists
+- **📧 Smart Email Generation**: Auto-generate personalized Gmail drafts with:
+  - Professional templates
+  - Automatic resume link inclusion
+  - Company-specific contact details
+  - Student profile integration
+- **📄 Comprehensive Profile Management**:
+  - Personal information editing
+  - PDF resume upload with progress tracking
+  - Resume file management and viewing
+  - Profile data persistence
+- **📋 Extensive Template Library**: Download 14 essential OJT documents:
+  - MOA templates and agreements
+  - Medical and consent forms
+  - Evaluation instruments
+  - DTR and accomplishment reports
+  - Portfolio submission guidelines
+- **🔐 Secure School Authentication**: Restricted access with PUP email verification
+- **🎯 Course-Specific Filtering**: Filter companies by supported academic programs (DIT, DCPET, DEET, DOMT)
+- **⏰ Real-time MOA Status**: Visual indicators for active vs. expired partnerships
 
 ### For Administrators
-- **🏢 HTE Management**: Add, edit, and delete Host Training Establishments
-- **📊 MOA Tracking**: Monitor MOA expiration dates and validity
-- **🔄 Data Processing**: Bulk upload HTE data from Excel with hyperlink extraction
-- **📈 Analytics**: View expired vs active partnerships
-- **✅ Quality Control**: Manage duplicate entries and data validation
+- **🏢 Complete HTE Management**: Full CRUD operations for Host Training Establishments with:
+  - Modal-based form interface
+  - Required field validation
+  - Comprehensive company data tracking
+- **📊 Intelligent MOA Management**:
+  - Expiration date tracking with visual indicators
+  - Toggle between active and expired partnerships
+  - MOA document link management
+  - Automatic status calculations
+- **🔄 Advanced Data Processing**: 
+  - Bulk upload capabilities from Excel files
+  - Hyperlink extraction from MOA columns
+  - Duplicate entry handling
+  - Data normalization and validation
+- **📈 Comprehensive Analytics Dashboard**:
+  - **MOA Expiry Alerts**: Color-coded urgency system (30/60/90 days) with quick update access
+  - **Student Metrics**: Total registered user count
+  - **Popularity Analytics**: Most applied-to companies with application counts
+  - **Partnership Statistics**: Active vs. expired HTE breakdown
+  - **Application Insights**: Status distribution across all students
+  - **Trend Analysis**: Application pattern tracking
+- **✅ Advanced Quality Control**:
+  - Duplicate detection and management
+  - Data integrity validation
+  - Course name normalization
+  - Contact information verification
+- **👥 User Management**: Role-based access control with admin privileges
+- **📋 Bulk Operations**: Mass data import and export capabilities
 
 ## 🚀 Live Demo
 
@@ -29,12 +77,45 @@ Visit the live application: [PUP OJT Portal](https://ojt-portal-gx0fznodu-oliver
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: React.js with modern hooks and components
-- **Backend**: Firebase (Firestore, Authentication, Storage)
-- **Styling**: Custom CSS with responsive design
-- **Deployment**: Vercel with automatic CI/CD
-- **Data Processing**: Python scripts with openpyxl for Excel handling
-- **Icons**: Lucide React for consistent iconography
+### Frontend Technologies
+- **React.js 18+**: Modern functional components with hooks (useState, useEffect)
+- **CSS3**: Custom styling with CSS Grid, Flexbox, and advanced animations
+- **Responsive Design**: Mobile-first approach with media queries
+- **Lucide React**: Comprehensive icon library with 40+ icons used
+- **Modern JavaScript**: ES6+ features, async/await, destructuring
+
+### Backend & Database
+- **Firebase Suite**:
+  - **Firestore**: NoSQL database with real-time listeners
+  - **Authentication**: Email/password with domain restrictions
+  - **Storage**: File upload for PDF resumes with progress tracking
+  - **Security Rules**: Role-based access control
+- **Real-time Synchronization**: Live data updates across all connected clients
+
+### Development & Deployment
+- **Vercel**: Serverless deployment with automatic CI/CD
+- **Git**: Version control with branching strategy
+- **VS Code**: Development environment with extensions
+- **Chrome DevTools**: Debugging and performance optimization
+
+### Data Processing
+- **Python 3.x**: Server-side scripts for data processing
+- **openpyxl**: Excel file manipulation and hyperlink extraction
+- **firebase-admin**: Server-side Firebase operations
+- **pytz**: Timezone handling for international compatibility
+
+### Performance & Analytics
+- **Vercel Analytics**: Real-time performance monitoring
+- **Code Splitting**: Optimized bundle loading
+- **Image Optimization**: Automatic image compression and format conversion
+- **Caching**: Browser and CDN caching strategies
+
+### Development Tools
+- **ESLint**: Code quality and consistency
+- **Prettier**: Code formatting
+- **Webpack**: Module bundling (via Create React App)
+- **Babel**: JavaScript transpilation
+- **Service Workers**: Offline capability and caching
 
 ## 📱 User Interface
 
@@ -93,7 +174,7 @@ Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 ## 📊 Data Management
 
 ### Excel Data Import
-The portal includes Python scripts for processing Excel files:
+The portal includes sophisticated Python scripts for processing Excel files:
 
 ```bash
 # Install Python dependencies
@@ -103,24 +184,72 @@ pip install openpyxl firebase-admin pytz
 python upload_script.py
 ```
 
-**Features:**
-- Extracts real hyperlinks from Excel MOA columns
-- Handles duplicate company entries intelligently
-- Processes both expiry years and validity durations
-- Normalizes data for Firestore compatibility
+**Advanced Processing Features:**
+- **Smart Hyperlink Extraction**: Extracts real hyperlinks from Excel MOA columns
+- **Intelligent Duplicate Handling**: Identifies and manages duplicate company entries
+- **Flexible Date Processing**: Handles both expiry years and validity duration formats
+- **Course Name Normalization**: Standardizes course abbreviations (DCET→DCPET, DOM-LOMT→DOMT)
+- **Data Validation**: Ensures data integrity before Firestore upload
+- **Timezone Handling**: Proper datetime conversion with timezone support
 
-### Data Structure
+### Comprehensive Data Structures
+
+#### HTE (Host Training Establishment) Document
 ```javascript
-// HTE Document Structure
 {
   name: "Company Name",
-  address: "Company Address", 
-  contactPerson: "Contact Name",
+  address: "Complete Company Address", 
+  contactPerson: "Primary Contact Name",
   contactNumber: "+63XXXXXXXXX",
   email: "contact@company.com",
-  course: "DIT, DCPET, DEET", // Supported courses
-  moaEndDate: Timestamp, // MOA expiration
-  moaLink: "https://..." // Link to MOA document
+  natureOfBusiness: "Industry/Business Type",
+  course: "DIT/DCPET/DEET/DOMT", // Supported courses (comma-separated)
+  moaEndDate: Timestamp, // MOA expiration date
+  moaLink: "https://drive.google.com/..." // Link to MOA document
+}
+```
+
+#### Student Profile Document
+```javascript
+{
+  name: "Student Full Name",
+  resumeUrl: "https://storage.firebase.com/...", // PDF resume URL
+  resumeFileName: "Resume.pdf",
+  shortlist: [
+    {
+      hteId: "hte_document_id",
+      status: "Applied" // Interested|Applied|Interviewing|Offer Received|Rejected
+    }
+  ]
+}
+```
+
+#### Analytics Data Structure
+```javascript
+{
+  totalStudents: 150,
+  activeHTEs: 75,
+  expiredHTEs: 25,
+  expiringHTEs: [
+    {
+      ...hteData,
+      urgency: "high", // high|medium|low
+      daysUntilExpiry: 15
+    }
+  ],
+  mostPopularHTEs: [
+    {
+      hte: {...hteData},
+      applications: 25
+    }
+  ],
+  applicationStats: {
+    "Interested": 45,
+    "Applied": 30,
+    "Interviewing": 12,
+    "Offer Received": 8,
+    "Rejected": 5
+  }
 }
 ```
 
@@ -133,11 +262,39 @@ python upload_script.py
 
 ## 🎨 UI/UX Features
 
-- **Responsive Design**: Works seamlessly on desktop, tablet, and mobile
-- **Modern Interface**: Clean, intuitive design following modern web standards
-- **Accessibility**: Proper ARIA labels and keyboard navigation
-- **Loading States**: Smooth loading indicators and error handling
-- **Modal System**: Elegant modal dialogs for forms and confirmations
+- **🎨 Modern PUP-Themed Design**: Custom color scheme with university branding (PUP maroon and gold)
+- **📱 Fully Responsive Layout**: Seamless experience across desktop, tablet, and mobile devices
+- **🎯 Intuitive Navigation**: 
+  - Collapsible hamburger menu for mobile
+  - Role-based navigation (different menus for students vs. admins)
+  - Breadcrumb-style page management
+- **⚡ Interactive Components**:
+  - Dropdown application status selector with icons
+  - Toggle switches for admin filters
+  - Expandable/collapsible sections
+  - Hover effects and smooth transitions
+- **🔄 Real-time Data Updates**: Live synchronization with Firebase for instant updates
+- **📊 Visual Status Indicators**:
+  - Color-coded MOA expiry status (green/yellow/red)
+  - Application status icons and badges
+  - Admin role indicators
+  - Loading states and progress bars
+- **🎭 Accessibility Features**:
+  - Proper ARIA labels and roles
+  - Keyboard navigation support
+  - Screen reader compatible
+  - High contrast color ratios
+- **💫 Enhanced User Experience**:
+  - Smooth modal dialogs with backdrop
+  - Card-based information layout
+  - Search highlighting and filtering
+  - Auto-generated email templates
+  - File upload progress tracking
+- **🔧 Advanced Form Handling**:
+  - Real-time validation
+  - Error state management
+  - Auto-save functionality
+  - Form persistence across sessions
 
 ## 📱 Mobile Experience
 
@@ -165,12 +322,14 @@ npm run build
 
 ## 🔄 Future Enhancements
 
-- [ ] **Email Notifications**: Automated reminders for MOA renewals
-- [ ] **Advanced Analytics**: Dashboard with charts and statistics
-- [ ] **Student Applications**: Track application status and responses
-- [ ] **Company Profiles**: Detailed company information and reviews
-- [ ] **API Integration**: Connect with external job portals
+- [ ] **Email Notifications**: Automated reminders for MOA renewals and application updates
+- [ ] **Advanced Visualizations**: Charts and graphs for analytics dashboard
+- [ ] **Export Features**: Download analytics reports and application data
+- [ ] **Company Profiles**: Detailed company information and student reviews
+- [ ] **API Integration**: Connect with external job portals and systems
 - [ ] **Mobile App**: React Native mobile application
+- [ ] **Real-time Notifications**: Push notifications for application status changes
+- [ ] **Calendar Integration**: Schedule interviews and important dates
 
 ## 🤝 Contributing
 

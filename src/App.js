@@ -18,8 +18,7 @@ import {
   onSnapshot,
   Timestamp,
   updateDoc,
-  arrayUnion,
-  arrayRemove,
+  getDocs,
 } from "firebase/firestore";
 import {
   getStorage,
@@ -46,6 +45,17 @@ import {
   Menu,
   Briefcase,
   ExternalLink,
+  Heart,
+  Send,
+  MessageCircle,
+  CheckCircle2,
+  XCircle,
+  ChevronDown,
+  TrendingUp,
+  Calendar,
+  AlertCircle,
+  Eye,
+  Activity,
 } from "lucide-react";
 import { Analytics } from "@vercel/analytics/react";
 import "./App.css";
@@ -100,6 +110,14 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showExpired, setShowExpired] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState("All");
+  const [adminAnalytics, setAdminAnalytics] = useState({
+    totalStudents: 0,
+    expiringHTEs: [],
+    mostPopularHTEs: [],
+    activeHTEs: 0,
+    expiredHTEs: 0,
+    applicationStats: {},
+  });
 
   useEffect(() => {
     try {
@@ -172,6 +190,103 @@ export default function App() {
     return () => unsubscribe();
   }, [db, user, isAdmin]);
 
+  // Fetch analytics data for admins
+  useEffect(() => {
+    if (!isAdmin || !db) return;
+
+    const fetchAnalytics = async () => {
+      try {
+        // Get all profiles to count students and analyze application data
+        const profilesSnapshot = await getDocs(collection(db, "profiles"));
+        const profiles = profilesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Count total students
+        const totalStudents = profiles.length;
+        
+        // Analyze application popularity
+        const htePopularity = {};
+        const applicationStats = {
+          Interested: 0,
+          Applied: 0,
+          Interviewing: 0,
+          'Offer Received': 0,
+          Rejected: 0,
+        };
+        
+        profiles.forEach(profile => {
+          const applications = profile.shortlist || [];
+          
+          if (applications.length > 0) {
+            applications.forEach(app => {
+              // Handle both legacy and new format
+              if (typeof app === 'string') {
+                htePopularity[app] = (htePopularity[app] || 0) + 1;
+                applicationStats.Interested++;
+              } else if (app.hteId) {
+                htePopularity[app.hteId] = (htePopularity[app.hteId] || 0) + 1;
+                applicationStats[app.status] = (applicationStats[app.status] || 0) + 1;
+              }
+            });
+          }
+        });
+        
+        // Find most popular HTEs
+        const mostPopularHTEs = Object.entries(htePopularity)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 10)
+          .map(([hteId, count]) => ({
+            hte: allHtes.find(h => h.id === hteId),
+            applications: count
+          }))
+          .filter(item => item.hte);
+        
+        // Find HTEs expiring soon
+        const now = new Date();
+        const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const sixtyDays = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+        const ninetyDays = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+        
+        const expiringHTEs = allHtes
+          .filter(hte => hte.moaEndDate && hte.moaEndDate.toDate() > now)
+          .map(hte => {
+            const expiryDate = hte.moaEndDate.toDate();
+            let urgency = 'low';
+            if (expiryDate <= thirtyDays) urgency = 'high';
+            else if (expiryDate <= sixtyDays) urgency = 'medium';
+            else if (expiryDate <= ninetyDays) urgency = 'low';
+            
+            return {
+              ...hte,
+              urgency,
+              daysUntilExpiry: Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24))
+            };
+          })
+          .filter(hte => hte.daysUntilExpiry <= 90)
+          .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
+        
+        // Count active vs expired HTEs
+        const activeHTEs = allHtes.filter(hte => 
+          !hte.moaEndDate || hte.moaEndDate.toDate() >= now
+        ).length;
+        const expiredHTEs = allHtes.length - activeHTEs;
+        
+        setAdminAnalytics({
+          totalStudents,
+          expiringHTEs,
+          mostPopularHTEs,
+          activeHTEs,
+          expiredHTEs,
+          applicationStats,
+        });
+        
+      } catch (error) {
+        console.error("Error fetching analytics:", error);
+      }
+    };
+
+    fetchAnalytics();
+  }, [isAdmin, db, allHtes]);
+
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth);
@@ -241,20 +356,44 @@ export default function App() {
     }
   };
 
-  const handleShortlistToggle = async (hteId) => {
+  const handleApplicationStatusUpdate = async (hteId, newStatus = null) => {
     if (!user || !db) return;
     const profileDocRef = doc(db, "profiles", user.uid);
-    const isShortlisted = profile?.shortlist?.includes(hteId);
+    
+    // Convert legacy shortlist array to new format if needed
+    const currentShortlist = profile?.shortlist || [];
+    let applications = [];
+    
+    if (currentShortlist.length > 0 && typeof currentShortlist[0] === 'string') {
+      // Legacy format - convert to new format
+      applications = currentShortlist.map(id => ({ hteId: id, status: 'Interested' }));
+    } else {
+      // New format or empty
+      applications = currentShortlist.filter(app => typeof app === 'object') || [];
+    }
+    
+    const existingAppIndex = applications.findIndex(app => app.hteId === hteId);
+    
     try {
-      if (isShortlisted) {
-        await updateDoc(profileDocRef, { shortlist: arrayRemove(hteId) });
+      if (newStatus === null) {
+        // Remove from applications (equivalent to old "unshortlist")
+        if (existingAppIndex !== -1) {
+          applications.splice(existingAppIndex, 1);
+        }
       } else {
-        await updateDoc(profileDocRef, { shortlist: arrayUnion(hteId) });
+        // Add or update status
+        if (existingAppIndex !== -1) {
+          applications[existingAppIndex].status = newStatus;
+        } else {
+          applications.push({ hteId, status: newStatus });
+        }
       }
+      
+      await updateDoc(profileDocRef, { shortlist: applications });
     } catch (error) {
-      console.error("Error updating shortlist:", error);
+      console.error("Error updating application status:", error);
       if (error.code === "not-found") {
-        await setDoc(profileDocRef, { shortlist: [hteId] }, { merge: true });
+        await setDoc(profileDocRef, { shortlist: applications }, { merge: true });
       }
     }
   };
@@ -312,7 +451,14 @@ export default function App() {
             setShowExpired={setShowExpired}
             selectedCourse={selectedCourse}
             setSelectedCourse={setSelectedCourse}
-            onShortlistToggle={handleShortlistToggle}
+            onApplicationStatusUpdate={handleApplicationStatusUpdate}
+          />
+        )}
+        {page === "analytics" && isAdmin && (
+          <AdminAnalytics
+            analytics={adminAnalytics}
+            allHtes={allHtes}
+            openModal={openModal}
           />
         )}
         {page === "templates" && <TemplatesSection />}
@@ -324,11 +470,11 @@ export default function App() {
             storage={storage}
           />
         )}
-        {page === "shortlist" && (
-          <ShortlistPage
+        {page === "applications" && (
+          <ApplicationsPage
             allHtes={allHtes}
             profile={profile}
-            onShortlistToggle={handleShortlistToggle}
+            onApplicationStatusUpdate={handleApplicationStatusUpdate}
           />
         )}
       </main>
@@ -641,12 +787,20 @@ function Navbar({ user, onLogout, setPage, isAdmin }) {
           >
             Dashboard
           </button>
-          {!isAdmin && (
+          {isAdmin && (
             <button
-              onClick={() => handlePageChange("shortlist")}
+              onClick={() => handlePageChange("analytics")}
               className="nav-link"
             >
-              Shortlist
+              Analytics
+            </button>
+          )}
+          {!isAdmin && (
+            <button
+              onClick={() => handlePageChange("applications")}
+              className="nav-link"
+            >
+              My Applications
             </button>
           )}
           <button
@@ -697,7 +851,7 @@ function Dashboard({
   setShowExpired,
   selectedCourse,
   setSelectedCourse,
-  onShortlistToggle,
+  onApplicationStatusUpdate,
 }) {
   const courses = [
     "All",
@@ -769,7 +923,7 @@ function Dashboard({
               profile={profile}
               onEdit={openModal}
               onDelete={handleDelete}
-              onShortlistToggle={onShortlistToggle}
+              onApplicationStatusUpdate={onApplicationStatusUpdate}
             />
           ))
         ) : (
@@ -786,10 +940,23 @@ function HteCard({
   profile,
   onEdit,
   onDelete,
-  onShortlistToggle,
+  onApplicationStatusUpdate,
 }) {
   const isExpired = hte.moaEndDate?.toDate() < new Date();
-  const isShortlisted = !isAdmin && profile?.shortlist?.includes(hte.id);
+  
+  // Handle both legacy and new format
+  const applications = profile?.shortlist || [];
+  let currentApplication = null;
+  
+  if (applications.length > 0) {
+    if (typeof applications[0] === 'string') {
+      // Legacy format
+      currentApplication = applications.includes(hte.id) ? { hteId: hte.id, status: 'Interested' } : null;
+    } else {
+      // New format
+      currentApplication = applications.find(app => app.hteId === hte.id) || null;
+    }
+  }
 
   const cardClasses = `hte-card ${isExpired ? "expired" : "active"}`;
   const headerClasses = `hte-card-header ${
@@ -822,16 +989,31 @@ function HteCard({
     return gmailUrl;
   };
 
+  const applicationStatuses = [
+    { value: 'Interested', label: 'Interested', icon: Heart, color: '#6b7280' },
+    { value: 'Applied', label: 'Applied', icon: Send, color: '#3b82f6' },
+    { value: 'Interviewing', label: 'Interviewing', icon: MessageCircle, color: '#f59e0b' },
+    { value: 'Offer Received', label: 'Offer Received', icon: CheckCircle2, color: '#10b981' },
+    { value: 'Rejected', label: 'Rejected', icon: XCircle, color: '#ef4444' },
+  ];
+
+  const handleStatusChange = (newStatus) => {
+    onApplicationStatusUpdate(hte.id, newStatus);
+  };
+
+  const handleRemoveApplication = () => {
+    onApplicationStatusUpdate(hte.id, null);
+  };
+
   return (
     <div className={cardClasses}>
       {!isAdmin && (
-        <button
-          className={`shortlist-btn ${isShortlisted ? "shortlisted" : ""}`}
-          onClick={() => onShortlistToggle(hte.id)}
-          title={isShortlisted ? "Remove from shortlist" : "Add to shortlist"}
-        >
-          <Star size={20} />
-        </button>
+        <ApplicationStatusDropdown 
+          currentApplication={currentApplication}
+          applicationStatuses={applicationStatuses}
+          onStatusChange={handleStatusChange}
+          onRemove={handleRemoveApplication}
+        />
       )}
       <div className={headerClasses}>
         <h3>
@@ -904,33 +1086,396 @@ function HteCard({
   );
 }
 
-function ShortlistPage({ allHtes, profile, onShortlistToggle }) {
-  const shortlistedIds = profile?.shortlist || [];
-  const shortlistedHtes = allHtes.filter((hte) =>
-    shortlistedIds.includes(hte.id)
+function ApplicationStatusDropdown({ currentApplication, applicationStatuses, onStatusChange, onRemove }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const currentStatus = currentApplication?.status || null;
+  const statusInfo = currentStatus ? applicationStatuses.find(s => s.value === currentStatus) : null;
+  
+  const handleStatusSelect = (status) => {
+    onStatusChange(status);
+    setIsOpen(false);
+  };
+  
+  const handleRemove = (e) => {
+    e.stopPropagation();
+    onRemove();
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="application-status-dropdown">
+      <button
+        className={`status-btn ${currentStatus ? 'has-status' : ''}`}
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ color: statusInfo?.color || '#6b7280' }}
+      >
+        {statusInfo ? (
+          <>
+            <statusInfo.icon size={16} />
+            <span className="status-label">{statusInfo.label}</span>
+          </>
+        ) : (
+          <>
+            <Star size={16} />
+            <span className="status-label">Track</span>
+          </>
+        )}
+        <ChevronDown size={14} className={`chevron ${isOpen ? 'open' : ''}`} />
+      </button>
+      
+      {isOpen && (
+        <>
+          <div className="status-overlay" onClick={() => setIsOpen(false)} />
+          <div className="status-dropdown">
+            {applicationStatuses.map((status) => (
+              <button
+                key={status.value}
+                className={`status-item ${currentStatus === status.value ? 'active' : ''}`}
+                onClick={() => handleStatusSelect(status.value)}
+                style={{ color: status.color }}
+              >
+                <status.icon size={16} />
+                <span>{status.label}</span>
+              </button>
+            ))}
+            {currentStatus && (
+              <>
+                <div className="status-divider" />
+                <button className="status-item remove" onClick={handleRemove}>
+                  <XCircle size={16} />
+                  <span>Remove from tracker</span>
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
+}
+
+function ApplicationsPage({ allHtes, profile, onApplicationStatusUpdate }) {
+  // Handle both legacy and new format
+  const applications = profile?.shortlist || [];
+  const applicationStatuses = [
+    { value: 'Interested', label: 'Interested', icon: Heart, color: '#6b7280' },
+    { value: 'Applied', label: 'Applied', icon: Send, color: '#3b82f6' },
+    { value: 'Interviewing', label: 'Interviewing', icon: MessageCircle, color: '#f59e0b' },
+    { value: 'Offer Received', label: 'Offer Received', icon: CheckCircle2, color: '#10b981' },
+    { value: 'Rejected', label: 'Rejected', icon: XCircle, color: '#ef4444' },
+  ];
+
+  // Initialize sections to be collapsed by default
+  const [expandedSections, setExpandedSections] = useState(() => {
+    const initialState = {};
+    applicationStatuses.forEach(status => {
+      initialState[status.value] = false;
+    });
+    return initialState;
+  });
+
+  // Normalize applications to new format
+  let normalizedApplications = [];
+  if (applications.length > 0) {
+    if (typeof applications[0] === 'string') {
+      // Legacy format - convert
+      normalizedApplications = applications.map(id => ({ hteId: id, status: 'Interested' }));
+    } else {
+      // New format
+      normalizedApplications = applications.filter(app => typeof app === 'object');
+    }
+  }
+
+  // Group applications by status
+  const groupedApplications = applicationStatuses.reduce((acc, status) => {
+    acc[status.value] = normalizedApplications
+      .filter(app => app.status === status.value)
+      .map(app => allHtes.find(hte => hte.id === app.hteId))
+      .filter(hte => hte); // Remove any undefined HTEs
+    return acc;
+  }, {});
+
+  const totalApplications = normalizedApplications.length;
+
+  const toggleSection = (statusValue) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [statusValue]: !prev[statusValue]
+    }));
+  };
+
+  const toggleAllSections = () => {
+    const hasAnyExpanded = Object.values(expandedSections).some(expanded => expanded);
+    const newState = {};
+    applicationStatuses.forEach(status => {
+      if (groupedApplications[status.value]?.length > 0) {
+        newState[status.value] = !hasAnyExpanded;
+      }
+    });
+    setExpandedSections(newState);
+  };
+
+  const hasAnyExpanded = Object.values(expandedSections).some(expanded => expanded);
 
   return (
     <div>
-      <h1>Your Shortlisted Companies</h1>
-      {shortlistedHtes.length > 0 ? (
-        <div className="hte-grid">
-          {shortlistedHtes.map((hte) => (
-            <HteCard
-              key={hte.id}
-              hte={hte}
-              isAdmin={false}
-              profile={profile}
-              onShortlistToggle={onShortlistToggle}
-            />
-          ))}
+      <div className="applications-header">
+        <div className="applications-title">
+          <h1>My Applications</h1>
+          <p className="applications-count">
+            {totalApplications} {totalApplications === 1 ? 'company' : 'companies'} tracked
+          </p>
+        </div>
+        {totalApplications > 0 && (
+          <button 
+            onClick={toggleAllSections} 
+            className="btn btn-secondary toggle-all-btn"
+          >
+            {hasAnyExpanded ? 'Collapse All' : 'Expand All'}
+          </button>
+        )}
+      </div>
+      
+      {totalApplications > 0 ? (
+        <div className="applications-by-status">
+          {applicationStatuses.map((status) => {
+            const StatusIcon = status.icon;
+            const companies = groupedApplications[status.value];
+            const isExpanded = expandedSections[status.value];
+            
+            if (companies.length === 0) return null;
+            
+            return (
+              <div key={status.value} className="status-section">
+                <button 
+                  className="status-header clickable" 
+                  style={{ color: status.color }}
+                  onClick={() => toggleSection(status.value)}
+                >
+                  <div className="status-title">
+                    <StatusIcon size={20} />
+                    <h2>{status.label} ({companies.length})</h2>
+                  </div>
+                  <ChevronDown 
+                    size={20} 
+                    className={`section-chevron ${isExpanded ? 'expanded' : ''}`}
+                  />
+                </button>
+                {isExpanded && (
+                  <div className="hte-grid status-content">
+                    {companies.map((hte) => (
+                      <HteCard
+                        key={hte.id}
+                        hte={hte}
+                        isAdmin={false}
+                        profile={profile}
+                        onApplicationStatusUpdate={onApplicationStatusUpdate}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
-        <p className="no-results">
-          You haven't shortlisted any companies yet. Click the star icon on a
-          company to add it to this list.
-        </p>
+        <div className="no-applications">
+          <Star size={48} className="no-applications-icon" />
+          <h2>No applications tracked yet</h2>
+          <p>
+            Start tracking your internship applications by clicking the "Track" button on companies that interest you in the Dashboard.
+          </p>
+        </div>
       )}
+    </div>
+  );
+}
+
+function AdminAnalytics({ analytics, allHtes, openModal }) {
+  const { 
+    totalStudents, 
+    expiringHTEs, 
+    mostPopularHTEs, 
+    activeHTEs, 
+    expiredHTEs, 
+    applicationStats 
+  } = analytics;
+
+  const getUrgencyColor = (urgency) => {
+    switch (urgency) {
+      case 'high': return '#ef4444';
+      case 'medium': return '#f59e0b';
+      case 'low': return '#10b981';
+      default: return '#6b7280';
+    }
+  };
+
+  const getUrgencyLabel = (urgency) => {
+    switch (urgency) {
+      case 'high': return 'Critical (≤30 days)';
+      case 'medium': return 'Warning (31-60 days)';
+      case 'low': return 'Notice (61-90 days)';
+      default: return 'Unknown';
+    }
+  };
+
+  return (
+    <div className="admin-analytics">
+      <div className="analytics-header">
+        <h1>Admin Analytics Dashboard</h1>
+        <p className="analytics-subtitle">Overview of OJT portal metrics and insights</p>
+      </div>
+
+      {/* Key Metrics Cards */}
+      <div className="metrics-grid">
+        <div className="metric-card">
+          <div className="metric-header">
+            <Users size={24} className="metric-icon students" />
+            <h3>Registered Students</h3>
+          </div>
+          <div className="metric-value">{totalStudents}</div>
+          <div className="metric-label">Total students using the portal</div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-header">
+            <Building size={24} className="metric-icon active" />
+            <h3>Active HTEs</h3>
+          </div>
+          <div className="metric-value">{activeHTEs}</div>
+          <div className="metric-label">Companies with valid MOAs</div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-header">
+            <AlertCircle size={24} className="metric-icon expired" />
+            <h3>Expired HTEs</h3>
+          </div>
+          <div className="metric-value">{expiredHTEs}</div>
+          <div className="metric-label">Companies needing MOA renewal</div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-header">
+            <Clock size={24} className="metric-icon warning" />
+            <h3>Expiring Soon</h3>
+          </div>
+          <div className="metric-value">{expiringHTEs.length}</div>
+          <div className="metric-label">MOAs expiring within 90 days</div>
+        </div>
+      </div>
+
+      {/* Application Status Statistics */}
+      <div className="analytics-section">
+        <h2>Application Statistics</h2>
+        <div className="application-stats-grid">
+          {Object.entries(applicationStats).map(([status, count]) => {
+            const statusConfig = {
+              'Interested': { icon: Heart, color: '#6b7280' },
+              'Applied': { icon: Send, color: '#3b82f6' },
+              'Interviewing': { icon: MessageCircle, color: '#f59e0b' },
+              'Offer Received': { icon: CheckCircle2, color: '#10b981' },
+              'Rejected': { icon: XCircle, color: '#ef4444' },
+            };
+            const config = statusConfig[status] || { icon: Activity, color: '#6b7280' };
+            const StatusIcon = config.icon;
+
+            return (
+              <div key={status} className="stat-card">
+                <div className="stat-header">
+                  <StatusIcon size={20} style={{ color: config.color }} />
+                  <span className="stat-label">{status}</span>
+                </div>
+                <div className="stat-value" style={{ color: config.color }}>{count}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Most Popular HTEs */}
+      <div className="analytics-section">
+        <h2>Most Popular Companies</h2>
+        <div className="popular-htes">
+          {mostPopularHTEs.length > 0 ? (
+            <div className="popular-list">
+              {mostPopularHTEs.map((item, index) => (
+                <div key={item.hte.id} className="popular-item">
+                  <div className="popular-rank">#{index + 1}</div>
+                  <div className="popular-info">
+                    <h4>{item.hte.name}</h4>
+                    <p>{item.hte.address}</p>
+                    <span className="popular-course">{item.hte.course || 'Any Course'}</span>
+                  </div>
+                  <div className="popular-stats">
+                    <div className="popular-count">
+                      <Eye size={16} />
+                      <span>{item.applications} applications</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-data">
+              <TrendingUp size={48} className="no-data-icon" />
+              <p>No application data available yet</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Expiring HTEs */}
+      <div className="analytics-section">
+        <h2>HTEs with Expiring MOAs</h2>
+        <div className="expiring-htes">
+          {expiringHTEs.length > 0 ? (
+            <div className="expiring-list">
+              {expiringHTEs.map((hte) => (
+                <div key={hte.id} className="expiring-item">
+                  <div className="expiring-urgency">
+                    <div 
+                      className="urgency-dot" 
+                      style={{ backgroundColor: getUrgencyColor(hte.urgency) }}
+                    ></div>
+                    <span className="urgency-label">{getUrgencyLabel(hte.urgency)}</span>
+                  </div>
+                  <div className="expiring-info">
+                    <h4>{hte.name}</h4>
+                    <p>{hte.address}</p>
+                    <div className="expiring-details">
+                      <span className="expiring-course">{hte.course || 'Any Course'}</span>
+                      <span className="expiring-contact">{hte.contactPerson}</span>
+                    </div>
+                  </div>
+                  <div className="expiring-timeline">
+                    <div className="days-remaining">
+                      <Calendar size={16} />
+                      <span>{hte.daysUntilExpiry} days</span>
+                    </div>
+                    <div className="expiry-date">
+                      {hte.moaEndDate.toDate().toLocaleDateString()}
+                    </div>
+                    <button 
+                      onClick={() => openModal(hte)}
+                      className="btn btn-primary btn-sm"
+                    >
+                      <Edit size={14} />
+                      Update
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-data">
+              <CheckCircle size={48} className="no-data-icon success" />
+              <p>All HTEs have valid MOAs for the next 90 days</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
