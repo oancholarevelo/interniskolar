@@ -73,7 +73,7 @@ A comprehensive web application for managing On-the-Job Training (OJT) opportuni
 
 ## 🚀 Live Demo
 
-Visit the live application: [PUP OJT Portal](https://ojt-portal-gx0fznodu-oliver-s-projects-f885d951.vercel.app)
+Visit the live application: [PUP OJT Portal](https://interniskolar.vercel.app)
 
 ## 🛠️ Technology Stack
 
