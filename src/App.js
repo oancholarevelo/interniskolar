@@ -154,14 +154,6 @@ export default function App() {
 
   useEffect(() => {
     try {
-      // Log environment loading status for debugging
-      console.log('Environment variable status:', {
-        hasApiKey: !!process.env.REACT_APP_FIREBASE_API_KEY,
-        hasAuthDomain: !!process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-        hasProjectId: !!process.env.REACT_APP_FIREBASE_PROJECT_ID,
-        usingFallback: !process.env.REACT_APP_FIREBASE_API_KEY
-      });
-
       // Validate Firebase config before initialization
       if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
         console.error('Firebase configuration is incomplete:', {
@@ -173,7 +165,6 @@ export default function App() {
         return;
       }
 
-      console.log('Initializing Firebase...');
       const app = initializeApp(firebaseConfig);
       const firestoreDb = getFirestore(app);
       const firebaseAuth = getAuth(app);
@@ -246,8 +237,7 @@ export default function App() {
       } else if (error.message.includes("network")) {
         userMessage = "Network connection error. Please check your internet connection and try again.";
       } else if (error.code === "duplicate-app") {
-        // This is usually not a critical error, just log it
-        console.log("Firebase app already initialized, continuing...");
+        // This is usually not a critical error, just continue silently
         return;
       }
       
