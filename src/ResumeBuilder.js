@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { jsPDF } from 'jspdf';
 import './ResumeBuilder.css';
 
-const ResumeBuilder = () => {
+const ResumeBuilder = ({ setPage }) => {
   const [personalInfo, setPersonalInfo] = useState({
     name: '',
     address: '',
@@ -20,6 +20,7 @@ const ResumeBuilder = () => {
   const [languages, setLanguages] = useState([]);
   const [references, setReferences] = useState([]);
   const [pdfMessage, setPdfMessage] = useState({ text: '', type: '' });
+  const [showPdfModal, setShowPdfModal] = useState(false);
   
   const previewRef = useRef(null);
 
@@ -353,16 +354,8 @@ const ResumeBuilder = () => {
 
       doc.save(`${(name || 'resume').toLowerCase().replace(/ /g, '_')}.pdf`);
       
-      // Show success message encouraging profile upload
-      setPdfMessage({
-        text: '🎉 Your resume is ready! Now upload it to your profile to share with employers.',
-        type: 'success'
-      });
-      
-      // Clear message after 10 seconds
-      setTimeout(() => {
-        setPdfMessage({ text: '', type: '' });
-      }, 10000);
+      // Show modal instead of inline message
+      setShowPdfModal(true);
       
     } catch (error) {
       console.error("Failed to generate PDF:", error);
@@ -712,6 +705,40 @@ const ResumeBuilder = () => {
           </div>
         </div>
       </div>
+
+      {/* PDF Success Modal */}
+      {showPdfModal && (
+        <div className="pdf-modal-overlay" onClick={() => setShowPdfModal(false)}>
+          <div className="pdf-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pdf-modal-icon">🎉</div>
+            <h2 className="pdf-modal-title">Resume Ready!</h2>
+            <p className="pdf-modal-message">
+              Your professional resume has been downloaded successfully. 
+              Now upload it to your profile to share with employers and make the most of your job applications.
+            </p>
+            <div className="pdf-modal-buttons">
+              <button 
+                className="pdf-modal-button primary"
+                onClick={() => {
+                  setShowPdfModal(false);
+                  // Navigate to profile page
+                  if (setPage) {
+                    setPage('profile');
+                  }
+                }}
+              >
+                Go to Profile
+              </button>
+              <button 
+                className="pdf-modal-button secondary"
+                onClick={() => setShowPdfModal(false)}
+              >
+                Continue Building
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -243,8 +243,11 @@
 
 .button-center {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   margin-top: 2rem;
+  min-height: 120px;
+  justify-content: flex-start;
 }
 
 /* Preview Panel */
@@ -474,6 +477,9 @@
   font-weight: 500;
   font-size: 0.875rem;
   animation: slideInUp 0.3s ease-out;
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
 }
 
 .pdf-message.success {
@@ -496,5 +502,121 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Modal Styles */
+.pdf-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.pdf-modal {
+  background: var(--white);
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  margin: 0 1rem;
+  text-align: center;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@media (max-width: 480px) {
+  .pdf-modal {
+    width: calc(100% - 2rem);
+    margin: 0 1rem;
+    padding: 1.5rem;
+  }
+  
+  .pdf-modal-buttons {
+    flex-direction: column;
+  }
+  
+  .pdf-modal-button {
+    width: 100%;
+  }
+}
+
+.pdf-modal-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.pdf-modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--dark-gray);
+  margin-bottom: 0.5rem;
+}
+
+.pdf-modal-message {
+  color: var(--secondary-color);
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.pdf-modal-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.pdf-modal-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: var(--font-sans);
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.pdf-modal-button.primary {
+  background-color: var(--primary-color);
+  color: var(--white);
+}
+
+.pdf-modal-button.primary:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.pdf-modal-button.secondary {
+  background-color: #f3f4f6;
+  color: var(--secondary-color);
+  border: 1px solid #d1d5db;
+}
+
+.pdf-modal-button.secondary:hover {
+  background-color: #e5e7eb;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

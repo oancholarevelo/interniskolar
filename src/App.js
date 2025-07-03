@@ -1001,7 +1001,7 @@ export default function App() {
           />
         )}
         {page === "resume-builder" && (
-          <ResumeBuilder />
+          <ResumeBuilder setPage={setPage} />
         )}
       </main>
       {isModalOpen && isAdmin && (
