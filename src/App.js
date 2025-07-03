@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import "./App.css";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -19,6 +20,7 @@ import {
   Timestamp,
   updateDoc,
   getDocs,
+  getDoc,
 } from "firebase/firestore";
 import {
   getStorage,
@@ -43,7 +45,7 @@ import {
   BookOpen,
   Star,
   Menu,
-  Briefcase,
+  GraduationCap,
   ExternalLink,
   Heart,
   Send,
@@ -56,19 +58,39 @@ import {
   AlertCircle,
   Eye,
   Activity,
+  Phone,
+  MessageSquare,
 } from "lucide-react";
-import { Analytics } from "@vercel/analytics/react";
-import "./App.css";
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
-  apiKey: "AIzaSyAIc6oFOBknpItFeHuw9qMhrNOzNjns5kk",
-  authDomain: "pup-internship.firebaseapp.com",
-  projectId: "pup-internship",
-  storageBucket: "pup-internship.appspot.com",
-  messagingSenderId: "742208522282",
-  appId: "1:742208522282:web:7b4e0e4f8c8e3f3ed75b53",
-  measurementId: "G-JZDCXXLHJ8",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
+};
+
+// --- Helper function for extracting name from email ---
+const extractNameFromEmail = (email) => {
+  if (!email) return "";
+  
+  // Extract the part before @ symbol
+  const localPart = email.split('@')[0];
+  
+  // Handle different email formats
+  if (localPart.includes('.')) {
+    // For emails like "firstname.lastname@domain.com"
+    return localPart
+      .split('.')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  } else {
+    // For emails like "firstnamelastname@domain.com" - just capitalize first letter
+    return localPart.charAt(0).toUpperCase() + localPart.slice(1).toLowerCase();
+  }
 };
 
 // --- Helper function for cleaning and normalizing course names ---
@@ -88,6 +110,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [checkingVerification, setCheckingVerification] = useState(false);
   const [page, setPage] = useState("dashboard");
   const [htes, setHtes] = useState([]);
   const [allHtes, setAllHtes] = useState([]);
@@ -110,6 +133,9 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showExpired, setShowExpired] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState("All");
+  const [selectedLocation, setSelectedLocation] = useState("All");
+  const [selectedIndustry, setSelectedIndustry] = useState("All");
+  const [moaStatus, setMoaStatus] = useState("All");
   const [adminAnalytics, setAdminAnalytics] = useState({
     totalStudents: 0,
     expiringHTEs: [],
@@ -118,6 +144,13 @@ export default function App() {
     expiredHTEs: 0,
     applicationStats: {},
   });
+  const [feedbackRequests, setFeedbackRequests] = useState([]);
+  const [feedbackForm, setFeedbackForm] = useState({
+    type: 'template',
+    subject: '',
+    message: ''
+  });
+  const [feedbackMessage, setFeedbackMessage] = useState({ text: '', type: '' });
 
   useEffect(() => {
     try {
@@ -129,8 +162,10 @@ export default function App() {
       setAuth(firebaseAuth);
       setStorage(firebaseStorage);
 
-      const unsubscribe = onAuthStateChanged(firebaseAuth, (currentUser) => {
+      const unsubscribe = onAuthStateChanged(firebaseAuth, async (currentUser) => {
         setUser(currentUser);
+        setCheckingVerification(false);
+        
         if (currentUser) {
           const adminEmailsForTesting = [
             "oliverarevelo@iskolarngbayan.pup.edu.ph",
@@ -138,6 +173,25 @@ export default function App() {
           const isTestAdmin = adminEmailsForTesting.includes(currentUser.email);
           const isDomainAdmin = currentUser.email.endsWith("@pup.edu.ph");
           setIsAdmin(isDomainAdmin || isTestAdmin);
+          
+          // Only proceed with profile creation if email is verified
+          if (currentUser.emailVerified && firestoreDb) {
+            try {
+              const profileDocRef = doc(firestoreDb, "profiles", currentUser.uid);
+              const profileSnapshot = await getDoc(profileDocRef);
+              
+              if (!profileSnapshot.exists()) {
+                const extractedName = extractNameFromEmail(currentUser.email);
+                await setDoc(profileDocRef, {
+                  name: extractedName,
+                  resumeUrl: "",
+                  shortlist: []
+                });
+              }
+            } catch (error) {
+              console.error("Error creating profile:", error);
+            }
+          }
         } else {
           setIsAdmin(false);
           setProfile(null);
@@ -287,6 +341,33 @@ export default function App() {
     fetchAnalytics();
   }, [isAdmin, db, allHtes]);
 
+  // Fetch feedback requests for admins
+  useEffect(() => {
+    if (!isAdmin || !db) return;
+
+    const feedbackCollection = collection(db, "feedback");
+    const unsubscribe = onSnapshot(
+      feedbackCollection,
+      (snapshot) => {
+        const requests = snapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          .sort((a, b) => {
+            // Sort by unread first, then by timestamp
+            if (a.isRead !== b.isRead) {
+              return a.isRead ? 1 : -1;
+            }
+            return b.timestamp?.toDate() - a.timestamp?.toDate();
+          });
+        setFeedbackRequests(requests);
+      },
+      (error) => console.error("Error fetching feedback:", error)
+    );
+    return () => unsubscribe();
+  }, [isAdmin, db]);
+
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth);
@@ -398,30 +479,125 @@ export default function App() {
     }
   };
 
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    if (!user || !db) return;
+    
+    try {
+      await addDoc(collection(db, "feedback"), {
+        userId: user.uid,
+        userEmail: user.email,
+        userName: profile?.name || extractNameFromEmail(user.email),
+        type: feedbackForm.type,
+        subject: feedbackForm.subject,
+        message: feedbackForm.message,
+        timestamp: Timestamp.fromDate(new Date()),
+        isRead: false,
+        status: 'pending'
+      });
+      
+      setFeedbackForm({ type: 'template', subject: '', message: '' });
+      setFeedbackMessage({ text: 'Your request has been submitted successfully!', type: 'success' });
+      
+      // Clear the message after 5 seconds
+      setTimeout(() => {
+        setFeedbackMessage({ text: '', type: '' });
+      }, 5000);
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      setFeedbackMessage({ text: 'Failed to submit request. Please try again.', type: 'error' });
+      
+      // Clear the error message after 5 seconds
+      setTimeout(() => {
+        setFeedbackMessage({ text: '', type: '' });
+      }, 5000);
+    }
+  };
+
+  const handleFeedbackMarkAsRead = async (feedbackId) => {
+    if (!db) return;
+    try {
+      await updateDoc(doc(db, "feedback", feedbackId), { isRead: true });
+    } catch (error) {
+      console.error("Error marking feedback as read:", error);
+    }
+  };
+
+  const handleFeedbackStatusUpdate = async (feedbackId, newStatus) => {
+    if (!db) return;
+    try {
+      await updateDoc(doc(db, "feedback", feedbackId), { status: newStatus });
+    } catch (error) {
+      console.error("Error updating feedback status:", error);
+    }
+  };
+
+  const handleFeedbackDelete = async (feedbackId) => {
+    if (!db || !window.confirm("Are you sure you want to delete this request?")) return;
+    try {
+      await deleteDoc(doc(db, "feedback", feedbackId));
+    } catch (error) {
+      console.error("Error deleting feedback:", error);
+      alert("Failed to delete request.");
+    }
+  };
+
   const filteredHtes = htes.filter((hte) => {
     const name = hte.name || "";
     const address = hte.address || "";
     const natureOfBusiness = hte.natureOfBusiness || "";
     const hteCourses = (hte.course || "").split(/[/,]/).map(normalizeCourse);
+    
+    // Search term matching
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       natureOfBusiness.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Course filter
     const matchesCourse =
       selectedCourse === "All" ||
       hteCourses.includes(normalizeCourse(selectedCourse));
-    if (isAdmin) {
-      const isExpired = hte.moaEndDate?.toDate() < new Date();
-      const matchesExpiry = showExpired ? isExpired : !isExpired;
-      return matchesSearch && matchesCourse && matchesExpiry;
+    
+    // Location filter (city/province from address)
+    const matchesLocation =
+      selectedLocation === "All" ||
+      address.toLowerCase().includes(selectedLocation.toLowerCase());
+    
+    // Industry/Nature of Business filter
+    const matchesIndustry =
+      selectedIndustry === "All" ||
+      natureOfBusiness.toLowerCase().includes(selectedIndustry.toLowerCase());
+    
+    // MOA Status filter
+    const now = new Date();
+    const isExpired = hte.moaEndDate?.toDate() < now;
+    const daysUntilExpiry = hte.moaEndDate ? Math.ceil((hte.moaEndDate.toDate() - now) / (1000 * 60 * 60 * 24)) : null;
+    
+    let matchesMoaStatus = true;
+    if (moaStatus === "Active") {
+      matchesMoaStatus = !isExpired;
+    } else if (moaStatus === "Expired") {
+      matchesMoaStatus = isExpired;
+    } else if (moaStatus === "Expiring Soon") {
+      matchesMoaStatus = !isExpired && daysUntilExpiry !== null && daysUntilExpiry <= 90;
+    } else if (moaStatus === "Critical") {
+      matchesMoaStatus = !isExpired && daysUntilExpiry !== null && daysUntilExpiry <= 30;
     }
-    return matchesSearch && matchesCourse;
+    
+    if (isAdmin) {
+      const matchesExpiry = showExpired ? isExpired : !isExpired;
+      return matchesSearch && matchesCourse && matchesLocation && matchesIndustry && matchesMoaStatus && matchesExpiry;
+    }
+    return matchesSearch && matchesCourse && matchesLocation && matchesIndustry && matchesMoaStatus;
   });
 
-  if (loading)
+  if (loading || checkingVerification)
     return (
       <div className="loading-screen">
-        <div className="loading-text">Loading Portal...</div>
+        <div className="loading-text">
+          {checkingVerification ? "Checking verification status..." : "Loading InternIskolar..."}
+        </div>
       </div>
     );
   if (!user) return <AuthScreen auth={auth} />;
@@ -451,6 +627,12 @@ export default function App() {
             setShowExpired={setShowExpired}
             selectedCourse={selectedCourse}
             setSelectedCourse={setSelectedCourse}
+            selectedLocation={selectedLocation}
+            setSelectedLocation={setSelectedLocation}
+            selectedIndustry={selectedIndustry}
+            setSelectedIndustry={setSelectedIndustry}
+            moaStatus={moaStatus}
+            setMoaStatus={setMoaStatus}
             onApplicationStatusUpdate={handleApplicationStatusUpdate}
           />
         )}
@@ -459,6 +641,22 @@ export default function App() {
             analytics={adminAnalytics}
             allHtes={allHtes}
             openModal={openModal}
+          />
+        )}
+        {page === "contact" && (
+          <ContactPage
+            user={user}
+            profile={profile}
+            feedbackForm={feedbackForm}
+            setFeedbackForm={setFeedbackForm}
+            onFeedbackSubmit={handleFeedbackSubmit}
+            feedbackMessage={feedbackMessage}
+            setFeedbackMessage={setFeedbackMessage}
+            isAdmin={isAdmin}
+            feedbackRequests={feedbackRequests}
+            onMarkAsRead={handleFeedbackMarkAsRead}
+            onStatusUpdate={handleFeedbackStatusUpdate}
+            onDelete={handleFeedbackDelete}
           />
         )}
         {page === "templates" && <TemplatesSection />}
@@ -487,7 +685,6 @@ export default function App() {
           editingHte={editingHte}
         />
       )}
-      <Analytics />
     </div>
   );
 }
@@ -505,15 +702,20 @@ function AuthScreen({ auth }) {
     e.preventDefault();
     setError("");
     setMessage("");
-    if (
-      !email.endsWith("@pup.edu.ph") &&
-      !email.endsWith("@iskolarngbayan.pup.edu.ph")
-    ) {
+    
+    // Allow @pup.edu.ph, @iskolarngbayan.pup.edu.ph, and @gmail.com
+    const isValidEmail = 
+      email.endsWith("@pup.edu.ph") ||
+      email.endsWith("@iskolarngbayan.pup.edu.ph") ||
+      email.endsWith("@gmail.com");
+    
+    if (!isValidEmail) {
       setError(
-        "Please use a valid school email address (@pup.edu.ph or @iskolarngbayan.pup.edu.ph)."
+        "Please use a valid email address (@pup.edu.ph, @iskolarngbayan.pup.edu.ph, or @gmail.com)."
       );
       return;
     }
+    
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
@@ -538,8 +740,8 @@ function AuthScreen({ auth }) {
     <div className="auth-screen">
       <div className="auth-container">
         <div className="auth-header">
-          <Briefcase className="auth-icon" />
-          <h1>OJT Portal</h1>
+          <GraduationCap className="auth-icon" />
+          <h1>InternIskolar</h1>
           <p>{isLogin ? "Sign in to your account" : "Create a new account"}</p>
         </div>
         <form onSubmit={handleAuthAction} className="auth-form">
@@ -547,7 +749,7 @@ function AuthScreen({ auth }) {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="School Email Address"
+            placeholder="Email Address"
             required
             className="auth-input"
           />
@@ -589,12 +791,29 @@ function AuthScreen({ auth }) {
           </button>
         </p>
       </div>
+      
+      {/* Footer only on auth screen */}
+      <footer className="auth-footer">
+        <p className="auth-footer-text">
+          Developed by{' '}
+          <a 
+            href="https://www.linkedin.com/in/oliver-revelo/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="auth-footer-link"
+          >
+            Oliver A. Revelo
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }
 
 function VerifyEmailScreen({ user, onLogout }) {
   const [message, setMessage] = useState("");
+  const [checking, setChecking] = useState(false);
+  
   const resendVerification = async () => {
     try {
       await sendEmailVerification(user);
@@ -603,6 +822,25 @@ function VerifyEmailScreen({ user, onLogout }) {
       setMessage(`Error: ${error.message}`);
     }
   };
+
+  const checkVerification = async () => {
+    setChecking(true);
+    setMessage("Checking verification status...");
+    try {
+      await user.reload();
+      if (user.emailVerified) {
+        setMessage("Email verified! Redirecting...");
+        // The auth state change will handle the redirect
+      } else {
+        setMessage("Email not yet verified. Please check your email and try again.");
+      }
+    } catch (error) {
+      setMessage(`Error checking verification: ${error.message}`);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <div className="verify-screen">
       <div className="verify-container">
@@ -614,15 +852,26 @@ function VerifyEmailScreen({ user, onLogout }) {
           inbox (and spam folder) and click the link to activate your account.
         </p>
         <p className="verify-subtext">
-          You can close this tab after verifying.
+          After clicking the verification link in your email, click "Check Verification" below.
         </p>
-        {message && <div className="alert success">{message}</div>}
+        {message && (
+          <div className={`alert ${message.includes("Error") ? "error" : "success"}`}>
+            {message}
+          </div>
+        )}
         <div className="verify-actions">
           <button onClick={onLogout} className="btn btn-danger">
             Logout
           </button>
-          <button onClick={resendVerification} className="btn btn-primary">
+          <button onClick={resendVerification} className="btn btn-secondary">
             Resend Email
+          </button>
+          <button 
+            onClick={checkVerification} 
+            className="btn btn-primary"
+            disabled={checking}
+          >
+            {checking ? "Checking..." : "Check Verification"}
           </button>
         </div>
       </div>
@@ -703,7 +952,7 @@ function ProfilePage({ user, profile, db, storage }) {
 
   return (
     <div>
-      <h1>Your Profile</h1>
+      <h1 className="page-heading">Your Profile</h1>
       <div className="profile-container">
         <form onSubmit={handleProfileUpdate} className="profile-form">
           <div className="form-group">
@@ -777,8 +1026,8 @@ function Navbar({ user, onLogout, setPage, isAdmin }) {
     <header className="navbar">
       <div className="navbar-container">
         <div className="navbar-brand">
-          <Briefcase className="navbar-icon" />
-          <span>OJT Portal</span>
+          <GraduationCap className="navbar-icon" />
+          <span>InternIskolar</span>
         </div>
         <nav className={`navbar-nav ${isMenuOpen ? "open" : ""}`}>
           <button
@@ -808,6 +1057,12 @@ function Navbar({ user, onLogout, setPage, isAdmin }) {
             className="nav-link"
           >
             Templates
+          </button>
+          <button
+            onClick={() => handlePageChange("contact")}
+            className="nav-link"
+          >
+            {isAdmin ? "Contact Requests" : "Contact"}
           </button>
           {!isAdmin && (
             <button
@@ -868,17 +1123,17 @@ function Dashboard({
 
   return (
     <div>
-      <div className="dashboard-header">
-        <h1>Host Training Establishments</h1>
-        {isAdmin && (
+      <h1 className="page-heading">Host Training Establishments</h1>
+      {isAdmin && (
+        <div className="dashboard-header">
           <button
             onClick={() => openModal()}
             className="btn btn-primary add-hte-btn"
           >
             <PlusCircle size={20} /> Add New HTE
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="search-filter-bar">
         <div className="search-container">
           <Search className="search-icon" />
@@ -967,26 +1222,60 @@ function HteCard({
   }`;
 
   const createGmailLink = () => {
-    const studentName =
-      profile?.name || "[Your Full Name - Please update in Profile]";
     const companyName = hte.name;
     const contactPerson = hte.contactPerson || "Hiring Manager";
     const to = hte.email;
-    const subject = `Internship Application - ${studentName}`;
 
-    let resumeLine = "";
-    if (profile?.resumeUrl) {
-      resumeLine = `You can view my resume here: ${profile.resumeUrl}`;
+    if (isAdmin) {
+      // Admin email template
+      const isExpired = hte.moaEndDate?.toDate() < new Date();
+      const expiryDate = hte.moaEndDate?.toDate().toLocaleDateString();
+      
+      let subject, body;
+      
+      if (isExpired) {
+        // MOA expired - renewal needed
+        subject = `MOA Renewal Required - ${companyName}`;
+        body = `Dear ${contactPerson},\n\nGreetings from Polytechnic University of the Philippines!\n\nI hope this email finds you well.\n\nI am writing to inform you that the Memorandum of Agreement (MOA) between ${companyName} and PUP for our On-the-Job Training (OJT) program has expired on ${expiryDate}.\n\nWe value our partnership and would like to continue collaborating with your organization for our students' internship opportunities. To proceed with accepting new interns, we will need to renew our MOA.\n\nPlease let us know if you would like to proceed with the renewal process. We can arrange a meeting to discuss the terms and finalize the new agreement.\n\nThank you for your continued partnership with PUP.\n\nBest regards,\nPUP OJT Administration\nPolytechnic University of the Philippines`;
+      } else {
+        // Active MOA - general administrative communication
+        const daysUntilExpiry = Math.ceil((hte.moaEndDate?.toDate() - new Date()) / (1000 * 60 * 60 * 24));
+        
+        if (daysUntilExpiry <= 90) {
+          // MOA expiring soon
+          subject = `MOA Renewal Reminder - ${companyName}`;
+          body = `Dear ${contactPerson},\n\nGreetings from Polytechnic University of the Philippines!\n\nI hope this email finds you well.\n\nThis is a friendly reminder that the Memorandum of Agreement (MOA) between ${companyName} and PUP for our On-the-Job Training (OJT) program is set to expire on ${expiryDate} (approximately ${daysUntilExpiry} days from now).\n\nTo ensure uninterrupted collaboration and continue accepting our students for internship opportunities, we would like to initiate the MOA renewal process.\n\nWould you be available for a meeting to discuss the renewal terms? We can work together to update any necessary details and finalize the new agreement before the current one expires.\n\nThank you for your valued partnership with PUP.\n\nBest regards,\nPUP OJT Administration\nPolytechnic University of the Philippines`;
+        } else {
+          // General administrative contact
+          subject = `PUP OJT Program Inquiry - ${companyName}`;
+          body = `Dear ${contactPerson},\n\nGreetings from Polytechnic University of the Philippines!\n\nI hope this email finds you well.\n\nI am reaching out regarding our ongoing partnership through the On-the-Job Training (OJT) program. We appreciate your continued collaboration in providing valuable internship opportunities for our students.\n\nPlease feel free to contact us if you have any questions, concerns, or updates regarding our partnership or the internship program.\n\nThank you for your support of PUP students.\n\nBest regards,\nPUP OJT Administration\nPolytechnic University of the Philippines`;
+        }
+      }
+      
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+        to
+      )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      return gmailUrl;
     } else {
-      resumeLine = "I would be happy to provide my resume upon your request.";
+      // Student email template (existing)
+      const studentName =
+        profile?.name || "[Your Full Name - Please update in Profile]";
+      const subject = `Internship Application - ${studentName}`;
+
+      let resumeLine = "";
+      if (profile?.resumeUrl) {
+        resumeLine = `You can view my resume here: ${profile.resumeUrl}`;
+      } else {
+        resumeLine = "I would be happy to provide my resume upon your request.";
+      }
+
+      const body = `Dear ${contactPerson},\n\nI hope this email finds you well.\n\nMy name is ${studentName}, and I am a student from Polytechnic University of the Philippines. I am writing to express my strong interest in an internship opportunity at ${companyName}, which I found on our school's InternIskolar portal.\n\n${resumeLine}\n\nThank you for your time and consideration.\n\nSincerely,\n${studentName}`;
+
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+        to
+      )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      return gmailUrl;
     }
-
-    const body = `Dear ${contactPerson},\n\nI hope this email finds you well.\n\nMy name is ${studentName}, and I am a student from Polytechnic University of the Philippines. I am writing to express my strong interest in an internship opportunity at ${companyName}, which I found on our school's OJT portal.\n\n${resumeLine}\n\nThank you for your time and consideration.\n\nSincerely,\n${studentName}`;
-
-    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-      to
-    )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    return gmailUrl;
   };
 
   const applicationStatuses = [
@@ -1026,7 +1315,7 @@ function HteCard({
           <Users size={16} /> <span>{hte.contactPerson || "N/A"}</span>
         </p>
         <p>
-          <Briefcase size={16} />{" "}
+          <Phone size={16} />{" "}
           <span>
             {hte.contactNumber || "N/A"} | {hte.email || "N/A"}
           </span>
@@ -1220,21 +1509,23 @@ function ApplicationsPage({ allHtes, profile, onApplicationStatusUpdate }) {
 
   return (
     <div>
-      <div className="applications-header">
-        <div className="applications-title">
-          <h1>My Applications</h1>
-          <p className="applications-count">
-            {totalApplications} {totalApplications === 1 ? 'company' : 'companies'} tracked
-          </p>
+      <div className="applications-header-wrapper">
+        <h1 className="page-heading">My Applications</h1>
+        <div className="applications-header">
+          <div className="applications-title">
+            <p className="applications-count">
+              {totalApplications} {totalApplications === 1 ? 'company' : 'companies'} tracked
+            </p>
+          </div>
+          {totalApplications > 0 && (
+            <button 
+              onClick={toggleAllSections} 
+              className="btn btn-secondary toggle-all-btn"
+            >
+              {hasAnyExpanded ? 'Collapse All' : 'Expand All'}
+            </button>
+          )}
         </div>
-        {totalApplications > 0 && (
-          <button 
-            onClick={toggleAllSections} 
-            className="btn btn-secondary toggle-all-btn"
-          >
-            {hasAnyExpanded ? 'Collapse All' : 'Expand All'}
-          </button>
-        )}
       </div>
       
       {totalApplications > 0 ? (
@@ -1323,8 +1614,8 @@ function AdminAnalytics({ analytics, allHtes, openModal }) {
   return (
     <div className="admin-analytics">
       <div className="analytics-header">
-        <h1>Admin Analytics Dashboard</h1>
-        <p className="analytics-subtitle">Overview of OJT portal metrics and insights</p>
+        <h1 className="page-heading">Admin Analytics Dashboard</h1>
+        <p className="analytics-subtitle">Overview of InternIskolar metrics and insights</p>
       </div>
 
       {/* Key Metrics Cards */}
@@ -1335,7 +1626,7 @@ function AdminAnalytics({ analytics, allHtes, openModal }) {
             <h3>Registered Students</h3>
           </div>
           <div className="metric-value">{totalStudents}</div>
-          <div className="metric-label">Total students using the portal</div>
+          <div className="metric-label">Total students using InternIskolar</div>
         </div>
 
         <div className="metric-card">
@@ -1538,7 +1829,7 @@ function TemplatesSection() {
   ];
   return (
     <div>
-      <h1>Downloadable Templates</h1>
+      <h1 className="page-heading">Downloadable Templates</h1>
       <div className="templates-container">
         <ul>
           {templates.map((template, index) => (
@@ -1688,6 +1979,248 @@ function HteFormModal({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function ContactPage({
+  user,
+  profile,
+  feedbackForm,
+  setFeedbackForm,
+  onFeedbackSubmit,
+  feedbackMessage,
+  setFeedbackMessage,
+  isAdmin,
+  feedbackRequests,
+  onMarkAsRead,
+  onStatusUpdate,
+  onDelete,
+}) {
+  const handleFormChange = (e) => {
+    setFeedbackForm(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending': return '#f59e0b';
+      case 'in-progress': return '#3b82f6';
+      case 'completed': return '#10b981';
+      case 'rejected': return '#ef4444';
+      default: return '#6b7280';
+    }
+  };
+
+  const getTypeIcon = (type) => {
+    switch (type) {
+      case 'template': return FileText;
+      case 'suggestion': return MessageSquare;
+      case 'bug': return AlertTriangle;
+      default: return MessageCircle;
+    }
+  };
+
+  if (isAdmin) {
+    const unreadCount = feedbackRequests.filter(req => !req.isRead).length;
+
+    return (
+      <div>
+        <div className="analytics-header">
+          <h1 className="page-heading">Contact Requests</h1>
+          <p className="analytics-subtitle">Overview of student feedback and support requests</p>
+        </div>
+
+        <div className="contact-stats">
+          <span className="contact-total">{feedbackRequests.length} total requests</span>
+          {unreadCount > 0 && (
+            <span className="contact-unread">{unreadCount} unread</span>
+          )}
+        </div>
+
+        {feedbackRequests.length > 0 ? (
+          <div className="contact-requests-list">
+            {feedbackRequests.map((request) => {
+              const TypeIcon = getTypeIcon(request.type);
+              return (
+                <div
+                  key={request.id}
+                  className={`contact-request-card ${!request.isRead ? 'unread' : ''}`}
+                >
+                  <div className="request-header">
+                    <div className="request-type">
+                      <TypeIcon size={20} />
+                      <span className="type-label">
+                        {request.type === 'template' ? 'Template Request' :
+                         request.type === 'suggestion' ? 'Website Suggestion' :
+                         request.type === 'bug' ? 'Bug Report' : 'Other'}
+                      </span>
+                      {!request.isRead && <span className="unread-badge">New</span>}
+                    </div>
+                    <div className="request-actions">
+                      <select
+                        value={request.status}
+                        onChange={(e) => onStatusUpdate(request.id, e.target.value)}
+                        className="status-select"
+                        style={{ color: getStatusColor(request.status) }}
+                      >
+                        <option value="pending">Pending Review</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                      <button
+                        onClick={() => onDelete(request.id)}
+                        className="icon-btn danger"
+                        title="Delete request"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="request-content">
+                    <h3 className="request-subject">{request.subject}</h3>
+                    <p className="request-message">{request.message}</p>
+                  </div>
+
+                  <div className="request-footer">
+                    <div className="request-user">
+                      <Users size={16} />
+                      <span>{request.userName} ({request.userEmail})</span>
+                    </div>
+                    <div className="request-date">
+                      <Clock size={16} />
+                      <span>{request.timestamp?.toDate().toLocaleDateString()}</span>
+                    </div>
+                    {!request.isRead && (
+                      <button
+                        onClick={() => onMarkAsRead(request.id)}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Mark as Read
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="no-contact-requests">
+            <MessageSquare size={48} className="no-requests-icon" />
+            <h2>No contact requests yet</h2>
+            <p>Student feedback and requests will appear here.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Student view
+  return (
+    <div>
+      <h1 className="page-heading">Contact & Feedback</h1>
+      <div className="contact-container">
+        <form onSubmit={onFeedbackSubmit} className="contact-form">
+          <div className="form-group">
+            <label htmlFor="type">Request Type</label>
+            <select
+              name="type"
+              id="type"
+              value={feedbackForm.type}
+              onChange={handleFormChange}
+              required
+              className="contact-select"
+            >
+              <option value="template">Template Request</option>
+              <option value="suggestion">Website Suggestion</option>
+              <option value="bug">Bug Report</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="subject">Subject</label>
+            <input
+              type="text"
+              name="subject"
+              id="subject"
+              value={feedbackForm.subject}
+              onChange={handleFormChange}
+              placeholder="Brief description of your request"
+              required
+              className="contact-input"
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="message">Message</label>
+            <textarea
+              name="message"
+              id="message"
+              value={feedbackForm.message}
+              onChange={handleFormChange}
+              placeholder="Please provide detailed information about your request or suggestion..."
+              required
+              rows={6}
+              className="contact-textarea"
+            />
+          </div>
+
+          <div className="contact-user-info">
+            <p><strong>Your Name:</strong> {profile?.name || 'Not set'}</p>
+            <p><strong>Your Email:</strong> {user.email}</p>
+          </div>
+
+          <button type="submit" className="btn btn-primary contact-submit">
+            <Send size={20} />
+            Submit Request
+          </button>
+        </form>
+
+        {feedbackMessage.text && (
+          <div className={`alert ${feedbackMessage.type}`} style={{ 
+            marginBottom: '2rem',
+            animation: 'slideIn 0.3s ease-out'
+          }}>
+            {feedbackMessage.type === 'success' ? (
+              <CheckCircle className="alert-icon" />
+            ) : (
+              <AlertTriangle className="alert-icon" />
+            )}
+            {feedbackMessage.text}
+            <button
+              onClick={() => setFeedbackMessage({ text: '', type: '' })}
+              className="alert-close-btn"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                marginLeft: 'auto',
+                padding: '0.25rem',
+                fontSize: '1.2rem',
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        <div className="contact-help">
+          <h3>What can you request?</h3>
+          <ul>
+            <li><strong>Template Requests:</strong> Need a specific document template that's not available?</li>
+            <li><strong>Website Suggestions:</strong> Ideas to improve the portal's functionality or user experience</li>
+            <li><strong>Bug Reports:</strong> Found something not working correctly? Let us know!</li>
+            <li><strong>General Feedback:</strong> Any other thoughts or suggestions about InternIskolar</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
