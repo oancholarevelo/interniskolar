@@ -1,4 +1,4 @@
-# InternIskolar - PUP OJT Portal
+# 🎓 InternIskolar - PUP OJT Portal
 
 A web portal for Polytechnic University of the Philippines (PUP) students to find internship opportunities and track their applications. Administrators can manage partner companies and their MOA agreements.
 
