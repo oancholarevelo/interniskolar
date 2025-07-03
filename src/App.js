@@ -64,13 +64,13 @@ import {
 
 // --- Firebase Configuration ---
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID,
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyAIc6oFOBknpItFeHuw9qMhrNOzNjns5kk",
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "pup-internship.firebaseapp.com",
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "pup-internship",
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "pup-internship.appspot.com",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "742208522282",
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:742208522282:web:7b4e0e4f8c8e3f3ed75b53",
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-JZDCXXLHJ8",
 };
 
 // --- Helper function for extracting name from email ---
@@ -154,6 +154,14 @@ export default function App() {
 
   useEffect(() => {
     try {
+      // Log environment loading status for debugging
+      console.log('Environment variable status:', {
+        hasApiKey: !!process.env.REACT_APP_FIREBASE_API_KEY,
+        hasAuthDomain: !!process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+        hasProjectId: !!process.env.REACT_APP_FIREBASE_PROJECT_ID,
+        usingFallback: !process.env.REACT_APP_FIREBASE_API_KEY
+      });
+
       // Validate Firebase config before initialization
       if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
         console.error('Firebase configuration is incomplete:', {
@@ -230,9 +238,22 @@ export default function App() {
       // Set a user-friendly error message for display
       setLoading(false);
       
-      // Don't try to continue if Firebase initialization failed
+      // Provide specific error messages based on the error type
+      let userMessage = "Failed to connect to the application. Please refresh the page and try again.";
+      
+      if (error.code === "auth/invalid-api-key") {
+        userMessage = "Authentication configuration error. Please contact support or try refreshing the page.";
+      } else if (error.message.includes("network")) {
+        userMessage = "Network connection error. Please check your internet connection and try again.";
+      } else if (error.code === "duplicate-app") {
+        // This is usually not a critical error, just log it
+        console.log("Firebase app already initialized, continuing...");
+        return;
+      }
+      
+      // Don't show alert on duplicate-app error
       if (error.code !== "duplicate-app") {
-        alert("Failed to connect to the application. Please refresh the page and try again.");
+        alert(userMessage);
       }
     }
   }, []);
@@ -638,7 +659,24 @@ export default function App() {
     return (
       <div className="loading-screen">
         <div className="loading-text">
-          Failed to initialize. Please refresh the page.
+          <h2>Connection Error</h2>
+          <p>Unable to connect to the authentication service.</p>
+          <br />
+          <p><strong>Possible solutions:</strong></p>
+          <ul style={{ textAlign: 'left', maxWidth: '500px', margin: '0 auto' }}>
+            <li>Refresh the page and try again</li>
+            <li>Check your internet connection</li>
+            <li>Clear your browser cache and cookies</li>
+            <li>Try accessing the site in incognito/private mode</li>
+          </ul>
+          <br />
+          <button 
+            onClick={() => window.location.reload()} 
+            className="btn btn-primary"
+            style={{ marginTop: '1rem' }}
+          >
+            Refresh Page
+          </button>
         </div>
       </div>
     );
@@ -749,11 +787,28 @@ function AuthScreen({ auth }) {
           <div className="auth-header">
             <GraduationCap className="auth-icon" />
             <h1>InternIskolar</h1>
-            <p>Connection Error</p>
+            <p>Service Unavailable</p>
           </div>
           <div className="alert error">
             <AlertTriangle className="alert-icon" />
-            <span>Unable to connect to authentication service. Please refresh the page and try again.</span>
+            <div>
+              <p><strong>Unable to connect to authentication service.</strong></p>
+              <p>This usually happens when the app is first loading or due to network issues.</p>
+              <br />
+              <p><strong>Please try:</strong></p>
+              <ul style={{ textAlign: 'left', margin: '0.5rem 0' }}>
+                <li>Refreshing the page</li>
+                <li>Checking your internet connection</li>
+                <li>Clearing browser cache if the issue persists</li>
+              </ul>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="btn btn-primary"
+                style={{ marginTop: '1rem', width: '100%' }}
+              >
+                Refresh Page
+              </button>
+            </div>
           </div>
         </div>
       </div>
