@@ -44,7 +44,15 @@ InternIskolar is a centralized platform where university students can browse ava
    - Access all required OJT documents and forms
    - Download MOA templates, consent forms, DTR, evaluation forms, etc.
 
-7. **Contact & Feedback**
+7. **Resume Builder**
+   - Create professional resumes with an intuitive form-based interface
+   - Live preview shows your resume as you type
+   - Choose from multiple font styles (Modern, Classic, Typewriter)
+   - Export your resume as a high-quality PDF
+   - All sections are customizable: Personal Info, Objective, Education, Experience, Skills, Honors, Languages, References
+   - Clean, professional templates with proper formatting
+
+8. **Contact & Feedback**
    - Request new templates or report bugs
    - Suggest improvements to the website
    - Submit general feedback
@@ -76,44 +84,63 @@ InternIskolar is a centralized platform where university students can browse ava
 ## Main Features
 
 ### Dashboard
-- Browse all available companies
-- Advanced search and filtering
-- Visual indicators for MOA status (active/expired)
-- Course-specific filtering
+- Browse all available companies with enhanced search and filtering
+- Visual indicators for MOA status (active/expired) with color coding
+- Course-specific filtering for relevant opportunities
+- Real-time application tracking buttons
+- Advanced search by company name, location, and industry type
+- Connection status indicator for offline/online state
 
 ### My Applications (Students Only)
-- See all companies you're tracking
-- Organized by application status
-- Expand/collapse sections for better organization
-- Track your application progress
+- Comprehensive view of all companies you're tracking
+- Organized by application status with collapsible sections
+- Visual progress tracking through application stages
+- Quick status updates and removal options
+- Email integration for direct company contact
 
 ### Analytics (Admins Only)
-- Overview of platform metrics
-- MOA expiration tracking with urgency levels
-- Popular companies report
-- Application status statistics
+- Comprehensive platform metrics and insights
+- MOA expiration tracking with urgency levels (30, 60, 90 day alerts)
+- Popular companies analytics and trends
+- Application status distribution across all students
+- Student engagement statistics
 
-### Templates
-- Download essential OJT documents
+### Templates & Documents
+- Download essential OJT documents and forms
 - MOA templates, consent forms, evaluation instruments
 - DTR templates and portfolio guidelines
+- Admin upload functionality for new templates
 
 ### Profile (Students Only)
-- Update personal information
-- Upload and manage resume
-- View current profile details
+- Update personal information with validation
+- Upload and manage resume (PDF format, 10MB limit)
+- Secure resume link generation for sharing
+- Upload progress tracking and file management
 
-### Contact
-- Students: Submit feedback and requests
-- Admins: Manage incoming requests and feedback
+### Resume Builder
+- Create professional resumes with guided form interface
+- Live preview updates as you type with empty state messaging
+- Multiple font family options (Modern Sans-Serif, Classic Serif, Typewriter Monospace)
+- Comprehensive sections: Personal Information, Objective, Education, Experience, Skills, Honors & Awards, Languages, References
+- Export to PDF with professional formatting and pagination
+- Clean, empty template for users to fill with their own information
+- Responsive design that works on all devices
+
+### Contact & Feedback
+- Students: Submit feedback, template requests, and bug reports
+- Admins: Manage incoming requests with status tracking
+- Feedback categorization and priority management
 
 ## Technology
 
-- **Frontend**: React.js with modern CSS
+- **Frontend**: React.js with modern CSS and responsive design
 - **Backend**: Firebase (Authentication, Firestore database, Storage)
-- **Deployment**: Vercel
-- **Email Integration**: Gmail compose links
-- **File Support**: PDF uploads for resumes and templates
+- **PDF Generation**: jsPDF library for resume export
+- **Deployment**: Vercel with automatic CI/CD
+- **Email Integration**: Gmail compose links with pre-filled templates
+- **File Support**: PDF uploads for resumes and templates (10MB limit)
+- **Real-time Features**: Live preview, connection status monitoring
+- **Security**: Email verification, role-based access control
 
 ## Links
 
@@ -121,20 +148,75 @@ InternIskolar is a centralized platform where university students can browse ava
 - **GitHub Repository**: [https://github.com/oancholarevelo/interniskolar](https://github.com/oancholarevelo/interniskolar)
 ## Getting Started
 
-1. Visit the portal website
-2. Sign up with your email address:
-   - Students: Use your university email or Gmail
-   - Administrators: Use institutional email only
-3. Verify your email through the link sent to your inbox
-4. Complete your profile with your name and upload your resume
-5. Start browsing companies and tracking your applications!
+1. **Visit the Portal**
+   - Go to [InternIskolar Portal](https://interniskolar.vercel.app)
+   - The platform works on all devices (desktop, tablet, mobile)
 
-## Support
+2. **Create Your Account**
+   - Students: Use your university email (@iskolarngbayan.pup.edu.ph) or Gmail (@gmail.com)
+   - Administrators: Must use institutional email (@pup.edu.ph)
+   - Create a strong password (minimum 6 characters)
+
+3. **Verify Your Email**
+   - Check your inbox for a verification email
+   - Click the verification link to activate your account
+   - You can resend the verification email if needed
+
+4. **Complete Your Profile**
+   - Add your full name and personal information
+   - Upload your resume (PDF format, max 10MB)
+   - Your resume will be accessible via a secure shareable link
+
+5. **Start Using the Platform**
+   - Browse available companies and internship opportunities
+   - Use the Resume Builder to create professional resumes
+   - Track your applications and update their status
+   - Download necessary OJT templates and forms
+
+6. **Stay Connected**
+   - The platform shows your connection status
+   - Data syncs automatically when you're back online
+   - Email companies directly through integrated Gmail links
+
+## New Features & Updates
+
+### ✨ Resume Builder
+- **Professional Resume Creation**: Build resumes with a guided, form-based interface
+- **Live Preview**: See your resume update in real-time as you type
+- **Multiple Font Options**: Choose from Modern (Sans-Serif), Classic (Serif), or Typewriter (Monospace)
+- **Comprehensive Sections**: Personal Information, Objective, Education, Experience, Skills, Honors & Awards, Languages, References
+- **PDF Export**: Download high-quality PDF resumes with professional formatting
+- **Clean Start**: Empty template allows users to input their own information
+- **Responsive Design**: Works seamlessly on desktop, tablet, and mobile devices
+
+### 🔄 Enhanced User Experience
+- **Connection Status Indicator**: Real-time online/offline status with sync notifications
+- **Improved Error Handling**: Better error messages and recovery options
+- **Email Verification Flow**: Streamlined verification process with resend options
+- **Form Validation**: Enhanced input validation across all forms
+- **Mobile Optimization**: Improved mobile experience for all features
+
+### 📊 Admin Improvements
+- **Analytics Dashboard**: Comprehensive metrics and insights
+- **MOA Management**: Advanced tracking with expiration alerts
+- **Template Management**: Upload and organize OJT documents
+- **Student Feedback System**: Manage requests and feedback efficiently
+
+## Support & Contact
 
 If you need help or want to report issues:
-- Use the Contact page in the portal to submit feedback
-- Contact the developer: [LinkedIn](https://www.linkedin.com/in/oliver-revelo/) or oancholarevelo@gmail.com
-- Report bugs or request new features
+- **In-App Support**: Use the Contact page in the portal to submit feedback
+- **Developer Contact**: [LinkedIn](https://www.linkedin.com/in/oliver-revelo/) or oancholarevelo@gmail.com
+- **GitHub Issues**: Report bugs or request features on the repository
+- **Email**: Direct support for urgent issues
+
+## Future Enhancements
+
+- **Resume Templates**: Additional resume styles and layouts
+- **Company Profiles**: Enhanced company information and reviews
+- **Application Tracking**: Advanced analytics for students
+- **Mobile App**: Native mobile application development
+- **Integration**: API connections with job boards and company systems
 
 ---
 

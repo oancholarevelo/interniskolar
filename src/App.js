@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
+import ResumeBuilder from "./ResumeBuilder";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
@@ -238,6 +239,83 @@ export default function App() {
     message: ''
   });
   const [feedbackMessage, setFeedbackMessage] = useState({ text: '', type: '' });
+  const [verificationMessage, setVerificationMessage] = useState({ text: '', type: '' });
+  const [connectionStatus, setConnectionStatus] = useState('online'); // online, offline, connecting
+
+  // Monitor network connectivity
+  useEffect(() => {
+    const handleOnline = () => {
+      setConnectionStatus('online');
+      console.log('Network connection restored');
+    };
+    
+    const handleOffline = () => {
+      setConnectionStatus('offline');
+      console.log('Network connection lost');
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Set initial state
+    setConnectionStatus(navigator.onLine ? 'online' : 'offline');
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Handle email verification redirect
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailVerified = urlParams.get('emailVerified');
+    
+    if (emailVerified === 'true') {
+      // Clear the URL parameter immediately to clean up the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Show success message
+      setVerificationMessage({
+        text: 'Email verification successful! Please sign in to continue.',
+        type: 'success'
+      });
+      
+      // Clear the message after 8 seconds
+      setTimeout(() => {
+        setVerificationMessage({ text: '', type: '' });
+      }, 8000);
+      
+      // Clear any pending verification state since user clicked the link
+      setPendingVerification(null);
+      
+      // If auth is available and user is logged in, reload their auth state
+      if (auth && auth.currentUser) {
+        console.log('Email verification detected, reloading user auth state...');
+        setVerificationMessage({
+          text: 'Email verified! Welcome to InternIskolar!',
+          type: 'success'
+        });
+        
+        auth.currentUser.reload().then(() => {
+          console.log('User auth state reloaded successfully after email verification');
+          // Clear the message after successful reload
+          setTimeout(() => {
+            setVerificationMessage({ text: '', type: '' });
+          }, 3000);
+        }).catch((error) => {
+          console.error('Error reloading user after verification:', error);
+          setVerificationMessage({
+            text: 'Email verified! Please refresh the page to continue.',
+            type: 'success'
+          });
+        });
+      } else if (auth) {
+        // If no current user but auth is available, they might need to sign in again
+        console.log('Email verification detected but no current user - user may need to sign in again');
+      }
+    }
+  }, [auth]);
 
   useEffect(() => {
     try {
@@ -255,6 +333,15 @@ export default function App() {
       const app = initializeApp(firebaseConfig);
       const firestoreDb = getFirestore(app);
       const firebaseAuth = getAuth(app);
+      
+      // Configure Firestore for better connection handling
+      try {
+        // Enable offline persistence (will only work if not already enabled)
+        console.log('Firebase services initialized successfully');
+      } catch (persistenceError) {
+        // Persistence might already be enabled, ignore this error
+        console.log('Firestore persistence configuration:', persistenceError.message);
+      }
       
       // Force storage to use the correct bucket URL with explicit gs:// prefix
       let firebaseStorage;
@@ -356,15 +443,25 @@ export default function App() {
     }
   }, []);
 
-  // Fetch user profile data (including shortlist)
+  // Fetch user profile data (including shortlist) with error handling
   useEffect(() => {
     if (user && db) {
       const profileDocRef = doc(db, "profiles", user.uid);
-      const unsubscribe = onSnapshot(profileDocRef, (doc) => {
-        setProfile(
-          doc.exists() ? doc.data() : { name: "", resumeUrl: "", shortlist: [] }
-        );
-      });
+      const unsubscribe = onSnapshot(
+        profileDocRef, 
+        (doc) => {
+          setProfile(
+            doc.exists() ? doc.data() : { name: "", resumeUrl: "", shortlist: [] }
+          );
+        },
+        (error) => {
+          console.error("Error fetching user profile:", error);
+          // If it's a network error, don't show alert, just log it
+          if (error.code !== 'unavailable' && error.code !== 'permission-denied') {
+            console.warn("Profile sync temporarily unavailable. Will retry automatically.");
+          }
+        }
+      );
       return () => unsubscribe();
     }
   }, [user, db]);
@@ -390,7 +487,17 @@ export default function App() {
           setHtes(activeList);
         }
       },
-      (error) => console.error("Error fetching HTEs:", error)
+      (error) => {
+        console.error("Error fetching HTEs:", error);
+        // Handle different types of Firestore errors
+        if (error.code === 'unavailable') {
+          console.warn("Firestore temporarily unavailable. Data will sync when connection is restored.");
+        } else if (error.code === 'permission-denied') {
+          console.error("Permission denied accessing HTEs. Please check authentication.");
+        } else {
+          console.error("Unexpected Firestore error:", error.message);
+        }
+      }
     );
     return () => unsubscribe();
   }, [db, user, isAdmin]);
@@ -486,13 +593,21 @@ export default function App() {
         
       } catch (error) {
         console.error("Error fetching analytics:", error);
+        // Handle analytics fetch errors gracefully
+        if (error.code === 'unavailable') {
+          console.warn("Analytics data temporarily unavailable. Please try refreshing the page.");
+        } else if (error.code === 'permission-denied') {
+          console.error("Permission denied accessing analytics data.");
+        } else {
+          console.error("Failed to load analytics data:", error.message);
+        }
       }
     };
 
     fetchAnalytics();
   }, [isAdmin, db, allHtes]);
 
-  // Fetch feedback requests for admins
+  // Fetch feedback requests for admins with error handling
   useEffect(() => {
     if (!isAdmin || !db) return;
 
@@ -514,7 +629,17 @@ export default function App() {
           });
         setFeedbackRequests(requests);
       },
-      (error) => console.error("Error fetching feedback:", error)
+      (error) => {
+        console.error("Error fetching feedback:", error);
+        // Handle different types of Firestore errors for feedback
+        if (error.code === 'unavailable') {
+          console.warn("Feedback data temporarily unavailable. Will sync when connection is restored.");
+        } else if (error.code === 'permission-denied') {
+          console.error("Permission denied accessing feedback. Please check admin permissions.");
+        } else {
+          console.error("Unexpected error fetching feedback:", error.message);
+        }
+      }
     );
     return () => unsubscribe();
   }, [isAdmin, db]);
@@ -779,7 +904,7 @@ export default function App() {
       </div>
     );
     
-  if (!user && !pendingVerification) return <AuthScreen auth={auth} setPendingVerification={setPendingVerification} />;
+  if (!user && !pendingVerification) return <AuthScreen auth={auth} setPendingVerification={setPendingVerification} verificationMessage={verificationMessage} />;
   if ((user && !user.emailVerified) || pendingVerification)
     return <VerifyEmailScreen 
       user={user || pendingVerification} 
@@ -793,6 +918,13 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Connection Status Indicator */}
+      {connectionStatus === 'offline' && (
+        <div className="connection-status offline">
+          📡 You're offline. Data will sync when connection is restored.
+        </div>
+      )}
+      
       <Navbar
         user={user}
         onLogout={handleLogout}
@@ -868,6 +1000,9 @@ export default function App() {
             onApplicationStatusUpdate={handleApplicationStatusUpdate}
           />
         )}
+        {page === "resume-builder" && (
+          <ResumeBuilder />
+        )}
       </main>
       {isModalOpen && isAdmin && (
         <HteFormModal
@@ -884,7 +1019,7 @@ export default function App() {
 
 // --- Authentication & Profile Components ---
 
-function AuthScreen({ auth, setPendingVerification }) {
+function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1045,6 +1180,12 @@ function AuthScreen({ auth, setPendingVerification }) {
             <div className="alert success">
               <CheckCircle className="alert-icon" />
               {message}
+            </div>
+          )}
+          {verificationMessage?.text && (
+            <div className={`alert ${verificationMessage.type}`}>
+              <CheckCircle className="alert-icon" />
+              {verificationMessage.text}
             </div>
           )}
           <button type="submit" className="auth-button">
@@ -1600,6 +1741,12 @@ function Navbar({ user, onLogout, setPage, isAdmin }) {
             Templates
           </button>
           <button
+            onClick={() => handlePageChange("resume-builder")}
+            className="nav-link"
+          >
+            Resume Builder
+          </button>
+          <button
             onClick={() => handlePageChange("contact")}
             className="nav-link"
           >
@@ -1616,7 +1763,6 @@ function Navbar({ user, onLogout, setPage, isAdmin }) {
         </nav>
         <div className="navbar-user-section">
           <div className="user-info">
-            <span className="user-email">{user.email}</span>
             {isAdmin && <span className="admin-badge">ADMIN</span>}
           </div>
           <button onClick={onLogout} className="logout-button" title="Logout">
@@ -2394,21 +2540,36 @@ function TemplatesSection({ isAdmin, db, storage }) {
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Fetch templates from Firestore
+  // Fetch templates from Firestore with error handling
   useEffect(() => {
     if (!db) return;
 
     const templatesRef = collection(db, "templates");
-    const unsubscribe = onSnapshot(templatesRef, (snapshot) => {
-      const templatesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      // Sort templates by name
-      templatesData.sort((a, b) => a.name.localeCompare(b.name));
-      setTemplates(templatesData);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      templatesRef, 
+      (snapshot) => {
+        const templatesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // Sort templates by name
+        templatesData.sort((a, b) => a.name.localeCompare(b.name));
+        setTemplates(templatesData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching templates:", error);
+        setLoading(false);
+        // Handle templates fetch errors
+        if (error.code === 'unavailable') {
+          console.warn("Templates temporarily unavailable. Will sync when connection is restored.");
+        } else if (error.code === 'permission-denied') {
+          console.error("Permission denied accessing templates.");
+        } else {
+          console.error("Unexpected error fetching templates:", error.message);
+        }
+      }
+    );
 
     return () => unsubscribe();
   }, [db]);

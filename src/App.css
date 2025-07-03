@@ -1,3 +1,45 @@
+/* Connection Status Indicator */
+.connection-status {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 0.5rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  animation: slideDown 0.3s ease-out;
+}
+
+.connection-status.offline {
+  background-color: #fef3c7;
+  color: #92400e;
+  border-bottom: 1px solid #f59e0b;
+}
+
+.connection-status.online {
+  background-color: #d1fae5;
+  color: #065f46;
+  border-bottom: 1px solid #10b981;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Adjust main content when status bar is visible */
+.app-container:has(.connection-status) .main-content {
+  padding-top: 3rem;
+}
+
 /* --- Global Styles & Variables (Updated Color Scheme) --- */
 :root {
   --primary-color: #810806;
@@ -2633,7 +2675,7 @@ body {
 
 /* Responsive Design for Analytics */
 @media (max-width: 768px) {
-  .admin-analytics {
+   .admin-analytics {
     padding: 0 0.5rem;
   }
 
