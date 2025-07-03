@@ -1,6 +1,6 @@
-# 🎓 PUP OJT Portal
+# 🎓 InternIskolar
 
-A comprehensive web application for managing On-the-Job Training (OJT) opportunities at Polytechnic University of the Philippines (PUP). This portal serves as a centralized platform for students to discover internship opportunities and for administrators to manage Host Training Establishments (HTEs).
+A comprehensive web application for managing On-the-Job Training (OJT) opportunities at Polytechnic University of the Philippines (PUP) Institute of Technology Department. This portal serves as a centralized platform for students to discover internship opportunities and for administrators to manage Host Training Establishments (HTEs).
 
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
