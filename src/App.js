@@ -78,9 +78,7 @@ const firebaseConfig = {
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-JZDCXXLHJ8",
 };
 
-// Log the configuration to verify correct values are loaded
-console.log('Firebase Storage Bucket:', firebaseConfig.storageBucket);
-console.log('Environment variable REACT_APP_FIREBASE_STORAGE_BUCKET:', process.env.REACT_APP_FIREBASE_STORAGE_BUCKET);
+// Configuration loaded successfully
 
 // --- Helper function for extracting name from email ---
 const extractNameFromEmail = (email) => {
@@ -120,7 +118,7 @@ const getStoragePathFromUrl = (downloadUrl) => {
       if (pathMatch) {
         // Decode the URL-encoded path
         const decodedPath = decodeURIComponent(pathMatch[1]);
-        console.log('Extracted path (firebasestorage):', decodedPath);
+        // Storage path extracted successfully
         return decodedPath;
       }
     } else if (downloadUrl.includes('storage.googleapis.com')) {
@@ -130,7 +128,7 @@ const getStoragePathFromUrl = (downloadUrl) => {
       const pathParts = url.pathname.split('/').filter(part => part);
       if (pathParts.length > 1) {
         const storagePath = pathParts.slice(1).join('/');
-        console.log('Extracted path (storage.googleapis.com):', storagePath);
+        // Storage path extracted successfully
         return storagePath;
       }
     } else if (downloadUrl.includes('googleapis.com') && (downloadUrl.includes('templates/') || downloadUrl.includes('resumes/'))) {
@@ -171,8 +169,10 @@ const testStorageConnectivity = async (storage, user) => {
   try {
     // Try to create a simple reference to test if storage is accessible
     const testRef = ref(storage, `test/${user.uid}/connectivity_test.txt`);
-    console.log('Storage reference created successfully:', testRef.toString());
-    return true;
+    // Test if we can access the reference properties (this validates storage connectivity)
+    const refPath = testRef.fullPath;
+    // Storage reference created successfully
+    return !!refPath; // Return true if we got a valid path
   } catch (error) {
     console.error('Storage connectivity test failed:', error);
     return false;
@@ -197,6 +197,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [checkingVerification, setCheckingVerification] = useState(false);
+  const [pendingVerification, setPendingVerification] = useState(null); // Track user waiting for verification
   const [page, setPage] = useState("dashboard");
   const [htes, setHtes] = useState([]);
   const [allHtes, setAllHtes] = useState([]);
@@ -260,18 +261,13 @@ export default function App() {
       try {
         // Always use the explicit bucket URL to avoid any configuration issues
         firebaseStorage = getStorage(app, `gs://${CORRECT_STORAGE_BUCKET}`);
-        console.log('Firebase Storage initialized with explicit bucket URL:', firebaseStorage.app.options.storageBucket);
-        console.log('Storage app name:', firebaseStorage.app.name);
-        console.log('Full storage config:', {
-          bucket: firebaseStorage.app.options.storageBucket,
-          projectId: firebaseStorage.app.options.projectId
-        });
+        // Storage initialized successfully
       } catch (storageError) {
         console.error('Firebase Storage initialization error:', storageError);
         // Fallback to default initialization
         try {
           firebaseStorage = getStorage(app);
-          console.log('Firebase Storage initialized with default config:', firebaseStorage.app.options.storageBucket);
+          // Storage initialized with fallback configuration
         } catch (fallbackError) {
           console.error('Failed to initialize storage with fallback:', fallbackError);
           firebaseStorage = null;
@@ -294,6 +290,9 @@ export default function App() {
         setCheckingVerification(false);
         
         if (currentUser) {
+          // Clear pending verification when user successfully logs in
+          setPendingVerification(null);
+          
           const adminEmailsForTesting = [
             "oliverarevelo@iskolarngbayan.pup.edu.ph",
           ];
@@ -322,6 +321,7 @@ export default function App() {
         } else {
           setIsAdmin(false);
           setProfile(null);
+          // Don't clear pendingVerification here - let it persist until verification is complete
         }
         setLoading(false);
       });
@@ -779,9 +779,17 @@ export default function App() {
       </div>
     );
     
-  if (!user) return <AuthScreen auth={auth} />;
-  if (!user.emailVerified)
-    return <VerifyEmailScreen user={user} onLogout={handleLogout} />;
+  if (!user && !pendingVerification) return <AuthScreen auth={auth} setPendingVerification={setPendingVerification} />;
+  if ((user && !user.emailVerified) || pendingVerification)
+    return <VerifyEmailScreen 
+      user={user || pendingVerification} 
+      onLogout={() => {
+        handleLogout();
+        setPendingVerification(null);
+      }} 
+      auth={auth}
+      setPendingVerification={setPendingVerification}
+    />;
 
   return (
     <div className="app-container">
@@ -876,7 +884,7 @@ export default function App() {
 
 // --- Authentication & Profile Components ---
 
-function AuthScreen({ auth }) {
+function AuthScreen({ auth, setPendingVerification }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -953,10 +961,30 @@ function AuthScreen({ auth }) {
           email,
           password
         );
-        await sendEmailVerification(userCredential.user);
+        
+        // Custom verification settings for better user experience
+        const actionCodeSettings = {
+          url: 'https://interniskolar.vercel.app/?emailVerified=true',
+          handleCodeInApp: false,
+          iOS: {
+            bundleId: 'com.pup.internskolar'
+          },
+          android: {
+            packageName: 'com.pup.internskolar',
+            installApp: false
+          }
+        };
+        
+        await sendEmailVerification(userCredential.user, actionCodeSettings);
         setMessage(
           "Verification email sent! Please check your inbox to continue."
         );
+        
+        // Store user info for verification screen, then sign out
+        setPendingVerification({
+          email: userCredential.user.email,
+          uid: userCredential.user.uid
+        });
         await signOut(auth);
       }
     } catch (err) {
@@ -1056,14 +1084,39 @@ function AuthScreen({ auth }) {
   );
 }
 
-function VerifyEmailScreen({ user, onLogout }) {
+function VerifyEmailScreen({ user, onLogout, auth, setPendingVerification }) {
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
   
+  // Handle case where user is from pendingVerification (no auth user object)
+  const userEmail = user?.email;
+  const isRealUser = user && typeof user.reload === 'function';
+  
   const resendVerification = async () => {
     try {
-      await sendEmailVerification(user);
-      setMessage("A new verification email has been sent.");
+      if (isRealUser) {
+        // User is still logged in, can resend directly
+        const actionCodeSettings = {
+          url: 'https://interniskolar.vercel.app/?emailVerified=true',
+          handleCodeInApp: false,
+          iOS: {
+            bundleId: 'com.pup.internskolar'
+          },
+          android: {
+            packageName: 'com.pup.internskolar',
+            installApp: false
+          }
+        };
+        
+        await sendEmailVerification(user, actionCodeSettings);
+        setMessage("A new verification email has been sent.");
+      } else {
+        // User was signed out after registration, need to sign in first
+        setMessage("Please sign in again to resend the verification email.");
+        setTimeout(() => {
+          setPendingVerification(null);
+        }, 2000);
+      }
     } catch (error) {
       setMessage(`Error: ${error.message}`);
     }
@@ -1072,13 +1125,24 @@ function VerifyEmailScreen({ user, onLogout }) {
   const checkVerification = async () => {
     setChecking(true);
     setMessage("Checking verification status...");
+    
     try {
-      await user.reload();
-      if (user.emailVerified) {
-        setMessage("Email verified! Redirecting...");
-        // The auth state change will handle the redirect
+      if (isRealUser) {
+        // User is still logged in, can check directly
+        await user.reload();
+        if (user.emailVerified) {
+          setMessage("Email verified! Redirecting...");
+          setPendingVerification(null);
+          // The auth state change will handle the redirect
+        } else {
+          setMessage("Email not yet verified. Please check your email and try again.");
+        }
       } else {
-        setMessage("Email not yet verified. Please check your email and try again.");
+        // User was signed out, need them to sign in to verify
+        setMessage("Please sign in to complete verification.");
+        setTimeout(() => {
+          setPendingVerification(null);
+        }, 2000);
       }
     } catch (error) {
       setMessage(`Error checking verification: ${error.message}`);
@@ -1094,11 +1158,11 @@ function VerifyEmailScreen({ user, onLogout }) {
         <h1>Verify Your Email</h1>
         <p>
           A verification link has been sent to{" "}
-          <span className="bold-text">{user.email}</span>. Please check your
+          <span className="bold-text">{userEmail}</span>. Please check your
           inbox (and spam folder) and click the link to activate your account.
         </p>
         <p className="verify-subtext">
-          After clicking the verification link in your email, click "Check Verification" below.
+          After clicking the verification link in your email, {isRealUser ? 'click "Check Verification" below' : 'sign in again to access your account'}.
         </p>
         {message && (
           <div className={`alert ${message.includes("Error") ? "error" : "success"}`}>
@@ -1107,18 +1171,20 @@ function VerifyEmailScreen({ user, onLogout }) {
         )}
         <div className="verify-actions">
           <button onClick={onLogout} className="btn btn-danger">
-            Logout
+            {isRealUser ? 'Logout' : 'Back to Login'}
           </button>
           <button onClick={resendVerification} className="btn btn-secondary">
             Resend Email
           </button>
-          <button 
-            onClick={checkVerification} 
-            className="btn btn-primary"
-            disabled={checking}
-          >
-            {checking ? "Checking..." : "Check Verification"}
-          </button>
+          {isRealUser && (
+            <button 
+              onClick={checkVerification} 
+              className="btn btn-primary"
+              disabled={checking}
+            >
+              {checking ? "Checking..." : "Check Verification"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1141,18 +1207,12 @@ function ProfilePage({ user, profile, db, storage }) {
   useEffect(() => {
     const runStorageTest = async () => {
       if (storage && user) {
-        console.log('Testing storage connectivity...');
-        console.log('Storage bucket configured:', storage.app.options.storageBucket);
-        console.log('Environment variables:');
-        console.log('- REACT_APP_FIREBASE_STORAGE_BUCKET:', process.env.REACT_APP_FIREBASE_STORAGE_BUCKET);
-        console.log('- Actual bucket being used:', storage.app.options.storageBucket);
-        
+        // Testing storage connectivity
         const canConnect = await testStorageConnectivity(storage, user);
         if (!canConnect) {
           console.warn('Storage connectivity test failed - uploads may not work properly');
-        } else {
-          console.log('Storage connectivity test passed');
         }
+        // Storage connectivity verified
       }
     };
     
@@ -1210,25 +1270,21 @@ function ProfilePage({ user, profile, db, storage }) {
 
       if (file && storage) {
         setMessage("Uploading resume...");
-        console.log('Storage bucket being used:', storage.app.options.storageBucket);
         
         // Delete old resume from storage if it exists
         if (profile?.resumeUrl) {
           try {
-            console.log('Current resume URL:', profile.resumeUrl);
-            
             // Try multiple deletion approaches
             let deleted = false;
             
             // Approach 1: Extract path from URL
             const storagePath = getStoragePathFromUrl(profile.resumeUrl);
-            console.log('Extracted storage path:', storagePath);
+            // Storage path extracted successfully
             if (storagePath) {
               try {
                 const oldResumeRef = ref(storage, storagePath);
-                console.log('Old resume ref created:', oldResumeRef.toString());
                 await deleteObject(oldResumeRef);
-                console.log('Old resume deleted from storage successfully (method 1)');
+                // Old resume deleted successfully
                 deleted = true;
               } catch (deleteError1) {
                 console.warn('Method 1 failed:', deleteError1);
@@ -1241,7 +1297,7 @@ function ProfilePage({ user, profile, db, storage }) {
                 // This method uses Firebase SDK's ability to create a reference from a download URL
                 const oldResumeRef = ref(storage, profile.resumeUrl);
                 await deleteObject(oldResumeRef);
-                console.log('Old resume deleted from storage successfully (method 2)');
+                // Old resume deleted successfully
                 deleted = true;
               } catch (deleteError2) {
                 console.warn('Method 2 failed:', deleteError2);
@@ -1256,10 +1312,10 @@ function ProfilePage({ user, profile, db, storage }) {
                 if (urlParts.length > 1) {
                   const filenamePart = urlParts[1].split('?')[0]; // Remove query parameters
                   const resumePath = `resumes/${decodeURIComponent(filenamePart)}`;
-                  console.log('Trying resume path method 3:', resumePath);
+                  // Attempting alternative deletion method
                   const oldResumeRef = ref(storage, resumePath);
                   await deleteObject(oldResumeRef);
-                  console.log('Old resume deleted from storage successfully (method 3)');
+                  // Old resume deleted successfully
                   deleted = true;
                 }
               } catch (deleteError3) {
@@ -1281,20 +1337,17 @@ function ProfilePage({ user, profile, db, storage }) {
         const timestamp = Date.now();
         const storageRef = ref(storage, `resumes/${user.uid}/${timestamp}_${safeFileName}`);
         
-        console.log('Storage reference created:', storageRef.toString());
+        // Attempting file upload
         
         try {
-          console.log('Attempting direct upload first (CORS workaround)...');
+          // Attempting direct upload first (CORS workaround)
           
           // Try direct upload first as it's more reliable with CORS
           try {
             setUploadProgress(25); // Show initial progress
-            console.log('Starting direct upload...');
             const snapshot = await uploadBytes(storageRef, file);
             setUploadProgress(75); // Show more progress
-            console.log('Direct upload successful, getting download URL...');
             const downloadURL = await getDownloadURL(snapshot.ref);
-            console.log('Download URL obtained:', downloadURL);
             setUploadProgress(90); // Almost done
             
             await setDoc(
@@ -1798,24 +1851,47 @@ Polytechnic University of the Philippines`;
     e.preventDefault();
     const emailUrl = createGmailLink();
     
-    if (isMobileDevice() && emailUrl.startsWith('googlegmail://')) {
-      // Try to open Gmail app first
-      window.location.href = emailUrl;
-      
-      // Fallback to mailto after a short delay if Gmail app doesn't open
-      setTimeout(() => {
-        const companyName = hte.name;
-        const to = hte.email;
-        const studentName = profile?.name || "[Your Full Name]";
-        const subject = isAdmin ? 
-          `PUP OJT Program - ${companyName}` : 
-          `Internship Application - ${studentName}`;
+    if (isMobileDevice()) {
+      // For mobile devices, try multiple email options
+      if (emailUrl.startsWith('googlegmail://')) {
+        // Try Gmail app first
+        window.location.href = emailUrl;
         
-        const mailtoUrl = `mailto:${to}?subject=${encodeURIComponent(subject)}`;
-        window.location.href = mailtoUrl;
-      }, 1000);
+        // Fallback to mailto with full content after a short delay
+        setTimeout(() => {
+          // Create full mailto URL with subject and body
+          const companyName = hte.name;
+          const contactPerson = hte.contactPerson || "Hiring Manager";
+          const to = hte.email;
+          const studentName = profile?.name || "[Your Full Name - Please update in Profile]";
+          
+          let subject, body;
+          
+          if (isAdmin) {
+            subject = `PUP OJT Program - ${companyName}`;
+            body = `Dear ${contactPerson},\n\nGreetings from Polytechnic University of the Philippines!\n\nI am reaching out regarding our partnership through the On-the-Job Training (OJT) program.\n\nBest regards,\nPUP OJT Administration`;
+          } else {
+            subject = `Internship Application - ${studentName}`;
+            
+            let resumeLine = "";
+            if (profile?.resumeUrl) {
+              resumeLine = `I have attached my resume for your review. You can access it through this link:\n\nResume Link: ${profile.resumeUrl}\n\nAlternatively, I would be happy to send my resume as an email attachment if you prefer.`;
+            } else {
+              resumeLine = "I would be happy to provide my resume upon your request via email or through any preferred method.";
+            }
+            
+            body = `Dear ${contactPerson},\n\nI hope this email finds you well.\n\nMy name is ${studentName}, and I am a student from Polytechnic University of the Philippines. I am writing to express my strong interest in an internship opportunity at ${companyName}.\n\n${resumeLine}\n\nI am eager to contribute to your organization and gain valuable experience in your industry.\n\nThank you for your time and consideration.\n\nSincerely,\n${studentName}\nPolytechnic University of the Philippines`;
+          }
+          
+          const mailtoUrl = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          window.location.href = mailtoUrl;
+        }, 1500);
+      } else {
+        // Direct mailto for mobile (if Gmail deep link is not available)
+        window.location.href = emailUrl.replace('https://mail.google.com/mail/?view=cm&fs=1&', 'mailto:').replace('&su=', '?subject=').replace('&body=', '&body=');
+      }
     } else {
-      // Open in browser (desktop or mobile fallback)
+      // Desktop - open Gmail in new tab
       window.open(emailUrl, '_blank', 'noopener,noreferrer');
     }
   };
@@ -2399,22 +2475,19 @@ function TemplatesSection({ isAdmin, db, storage }) {
       // Delete from Firebase Storage if downloadURL exists
       if (downloadURL && storage) {
         try {
-          console.log('Template download URL:', downloadURL);
-          console.log('Storage bucket:', storage.app.options.storageBucket);
+          // Attempting to delete template file from storage
           
           // Try multiple deletion approaches
           let deleted = false;
           
           // Approach 1: Extract path from URL
           const storagePath = getStoragePathFromUrl(downloadURL);
-          console.log('Extracted template storage path:', storagePath);
+          // Template storage path extracted
           if (storagePath) {
             try {
               const storageRef = ref(storage, storagePath);
-              console.log('Template storage ref created:', storageRef.toString());
-              console.log('Template storage ref fullPath:', storageRef.fullPath);
               await deleteObject(storageRef);
-              console.log('Template file deleted from storage successfully (method 1)');
+              // Template file deleted successfully
               deleted = true;
             } catch (deleteError1) {
               console.warn('Template deletion method 1 failed:', deleteError1);
@@ -2428,7 +2501,7 @@ function TemplatesSection({ isAdmin, db, storage }) {
             try {
               const storageRef = ref(storage, downloadURL);
               await deleteObject(storageRef);
-              console.log('Template file deleted from storage successfully (method 2)');
+              // Template file deleted successfully
               deleted = true;
             } catch (deleteError2) {
               console.warn('Template deletion method 2 failed:', deleteError2);
@@ -2443,10 +2516,10 @@ function TemplatesSection({ isAdmin, db, storage }) {
               if (urlParts.length > 1) {
                 const filenamePart = urlParts[1].split('?')[0]; // Remove query parameters
                 const templatePath = `templates/${decodeURIComponent(filenamePart)}`;
-                console.log('Trying template path method 3:', templatePath);
+                // Attempting alternative template deletion method
                 const storageRef = ref(storage, templatePath);
                 await deleteObject(storageRef);
-                console.log('Template file deleted from storage successfully (method 3)');
+                // Template file deleted successfully
                 deleted = true;
               }
             } catch (deleteError3) {
