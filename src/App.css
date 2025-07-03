@@ -27,6 +27,20 @@
   --font-sans: "Source Sans 3", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
+html {
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+html, body {
+  /* Ensure no gaps or white space on any device */
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -40,6 +54,9 @@ body {
   /* Prevent white space on mobile devices */
   min-height: 100vh;
   min-height: 100dvh;
+  width: 100%;
+  /* Ensure no horizontal overflow */
+  overflow-x: hidden;
 }
 
 /* --- App Container --- */
@@ -137,6 +154,8 @@ body {
   min-height: 100dvh; /* Use dynamic viewport height for better mobile support */
   height: 100vh; /* Ensure full coverage */
   height: 100dvh; /* Dynamic viewport height for mobile */
+  width: 100vw;
+  width: 100dvw; /* Ensure full width coverage */
   background: linear-gradient(to bottom right, #800000, var(--accent-color));
   padding: 2rem 1rem; /* More balanced padding */
   box-sizing: border-box;
@@ -147,7 +166,7 @@ body {
   right: 0;
   bottom: 0;
   
-  /* Ensure background covers everything on all devices */
+  /* Ensure background covers everything on all devices including very tall ones */
   background-attachment: fixed;
   background-size: 100% 100%; /* Stretch to cover entire viewport */
   background-repeat: no-repeat;
@@ -159,6 +178,11 @@ body {
     padding: 1.5rem 1rem 4rem 1rem; /* Add bottom padding for footer space */
     justify-content: center; /* Center the container */
     background-attachment: scroll; /* Better for mobile performance */
+    /* Force full coverage on tall mobile devices */
+    min-height: 100vh;
+    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
   }
 }
 
@@ -166,6 +190,47 @@ body {
 @media (max-width: 479px) {
   .auth-screen {
     padding: 1rem 0.75rem 4rem 0.75rem;
+  }
+}
+
+/* Tall mobile devices (like Samsung A56) */
+@media (max-width: 767px) and (min-height: 800px) {
+  .auth-screen {
+    /* Ensure full background coverage on very tall mobile screens */
+    background-size: 100% 100%;
+    background-position: center center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
+/* Extra tall mobile devices (Samsung Galaxy A56, etc.) */
+@media (max-width: 767px) and (min-height: 900px) {
+  .auth-screen {
+    /* Force absolute positioning and full coverage on extra tall devices */
+    position: absolute;
+    width: 100vw;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: linear-gradient(to bottom right, #800000, var(--accent-color));
+    background-size: 100% 100%;
+    background-attachment: scroll;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+  }
+}
+
+/* Ultra tall mobile devices */
+@media (max-width: 767px) and (min-height: 1000px) {
+  .auth-screen {
+    /* Additional coverage for ultra tall screens */
+    background-size: cover;
+    background-position: center;
   }
 }
 
@@ -1809,7 +1874,6 @@ progress {
     right: 1rem;
     margin: 0;
     z-index: 10; /* Higher z-index to ensure visibility */
-    background: rgba(0, 0, 0, 0.1); /* Subtle background for better visibility */
     border-radius: 0.5rem;
     padding: 0.5rem;
   }
