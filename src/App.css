@@ -36,6 +36,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-y: scroll;
   /* Always show scrollbar to prevent navbar jumping */
+  
+  /* Prevent white space on mobile devices */
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* --- App Container --- */
@@ -131,8 +135,10 @@ body {
   justify-content: center;
   min-height: 100vh;
   min-height: 100dvh; /* Use dynamic viewport height for better mobile support */
+  height: 100vh; /* Ensure full coverage */
+  height: 100dvh; /* Dynamic viewport height for mobile */
   background: linear-gradient(to bottom right, #800000, var(--accent-color));
-  padding: 1rem;
+  padding: 2rem 1rem; /* More balanced padding */
   box-sizing: border-box;
   overflow: auto;
   position: fixed;
@@ -140,22 +146,34 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
+  
+  /* Ensure background covers everything on all devices */
+  background-attachment: fixed;
+  background-size: 100% 100%; /* Stretch to cover entire viewport */
+  background-repeat: no-repeat;
 }
 
-/* Mobile-specific adjustments for better centering */
+/* Mobile-specific adjustments for better centering and spacing */
 @media (max-width: 767px) {
   .auth-screen {
-    padding: 0.5rem;
-    justify-content: flex-start;
-    padding-top: 10vh; /* Add some top spacing but not too much */
+    padding: 1.5rem 1rem 4rem 1rem; /* Add bottom padding for footer space */
+    justify-content: center; /* Center the container */
+    background-attachment: scroll; /* Better for mobile performance */
+  }
+}
+
+/* Very small mobile screens */
+@media (max-width: 479px) {
+  .auth-screen {
+    padding: 1rem 0.75rem 4rem 0.75rem;
   }
 }
 
 .auth-container {
   width: 100%;
   max-width: 400px;
-  max-height: calc(100vh - 2rem);
-  max-height: calc(100dvh - 2rem); /* Use dynamic viewport height */
+  max-height: calc(100vh - 4rem);
+  max-height: calc(100dvh - 4rem); /* Use dynamic viewport height */
   padding: 1.5rem;
   background-color: white;
   border-radius: 1rem;
@@ -165,15 +183,25 @@ body {
   display: flex;
   flex-direction: column;
   margin: auto; /* Ensure centering */
+  position: relative; /* Helps with footer positioning */
 }
 
 /* Mobile-specific container adjustments */
 @media (max-width: 767px) {
   .auth-container {
-    max-height: calc(100dvh - 1rem);
+    max-height: calc(100dvh - 6rem); /* Account for screen padding and footer */
+    padding: 1.25rem;
+    margin: 0 auto; /* Center horizontally */
+    min-height: auto; /* Allow natural height adjustment */
+  }
+}
+
+/* Very small mobile screens */
+@media (max-width: 479px) {
+  .auth-container {
+    max-height: calc(100dvh - 5rem);
     padding: 1rem;
-    margin-top: 0;
-    margin-bottom: auto;
+    max-width: 350px;
   }
 }
 
@@ -1765,25 +1793,49 @@ progress {
 /* --- Auth Footer (only on login/register) --- */
 .auth-footer {
   position: absolute;
-  bottom: 1rem;
+  bottom: 1.5rem;
   left: 0;
   right: 0;
   text-align: center;
+  z-index: 1; /* Ensure footer stays on top */
 }
 
 /* Mobile-specific footer adjustments */
 @media (max-width: 767px) {
   .auth-footer {
-    position: relative;
-    margin-top: 2rem;
-    margin-bottom: 0;
+    position: fixed; /* Fixed positioning on mobile for better control */
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    margin: 0;
+    z-index: 10; /* Higher z-index to ensure visibility */
+    background: rgba(0, 0, 0, 0.1); /* Subtle background for better visibility */
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+  }
+}
+
+/* Very small mobile screens */
+@media (max-width: 479px) {
+  .auth-footer {
+    bottom: 0.75rem;
+    padding: 0.375rem;
+    font-size: 0.8rem;
   }
 }
 
 .auth-footer-text {
   margin: 0;
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); /* Better text visibility */
+}
+
+/* Mobile responsiveness for footer text */
+@media (max-width: 479px) {
+  .auth-footer-text {
+    font-size: 0.8rem;
+  }
 }
 
 .auth-footer-link {
@@ -1791,10 +1843,12 @@ progress {
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); /* Better text visibility */
 }
 
 .auth-footer-link:hover {
   color: var(--accent-color);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 /* --- Contact & Feedback System --- */
