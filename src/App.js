@@ -27,6 +27,8 @@ import {
   ref,
   uploadBytesResumable,
   getDownloadURL,
+  uploadBytes,
+  deleteObject,
 } from "firebase/storage";
 import {
   PlusCircle,
@@ -63,15 +65,22 @@ import {
 } from "lucide-react";
 
 // --- Firebase Configuration ---
+// Force correct storage bucket regardless of environment variables
+const CORRECT_STORAGE_BUCKET = "pup-internship.firebasestorage.app";
+
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyAIc6oFOBknpItFeHuw9qMhrNOzNjns5kk",
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "pup-internship.firebaseapp.com",
   projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "pup-internship",
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "pup-internship.appspot.com",
+  storageBucket: CORRECT_STORAGE_BUCKET, // Force correct bucket
   messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "742208522282",
   appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:742208522282:web:7b4e0e4f8c8e3f3ed75b53",
   measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-JZDCXXLHJ8",
 };
+
+// Log the configuration to verify correct values are loaded
+console.log('Firebase Storage Bucket:', firebaseConfig.storageBucket);
+console.log('Environment variable REACT_APP_FIREBASE_STORAGE_BUCKET:', process.env.REACT_APP_FIREBASE_STORAGE_BUCKET);
 
 // --- Helper function for extracting name from email ---
 const extractNameFromEmail = (email) => {
@@ -90,6 +99,83 @@ const extractNameFromEmail = (email) => {
   } else {
     // For emails like "firstnamelastname@domain.com" - just capitalize first letter
     return localPart.charAt(0).toUpperCase() + localPart.slice(1).toLowerCase();
+  }
+};
+
+// --- Helper function for extracting storage path from download URL ---
+const getStoragePathFromUrl = (downloadUrl) => {
+  if (!downloadUrl) return null;
+  
+  try {
+    console.log('Parsing URL:', downloadUrl);
+    
+    // Handle different Firebase Storage URL formats
+    // Format 1: https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fto%2Ffile?alt=media&token=...
+    // Format 2: https://storage.googleapis.com/bucket/path/to/file
+    
+    if (downloadUrl.includes('firebasestorage.googleapis.com')) {
+      // Standard Firebase Storage download URL
+      const url = new URL(downloadUrl);
+      const pathMatch = url.pathname.match(/\/o\/(.+)$/);
+      if (pathMatch) {
+        // Decode the URL-encoded path
+        const decodedPath = decodeURIComponent(pathMatch[1]);
+        console.log('Extracted path (firebasestorage):', decodedPath);
+        return decodedPath;
+      }
+    } else if (downloadUrl.includes('storage.googleapis.com')) {
+      // Alternative Firebase Storage URL format
+      const url = new URL(downloadUrl);
+      // Remove the bucket name from the path (first segment after /)
+      const pathParts = url.pathname.split('/').filter(part => part);
+      if (pathParts.length > 1) {
+        const storagePath = pathParts.slice(1).join('/');
+        console.log('Extracted path (storage.googleapis.com):', storagePath);
+        return storagePath;
+      }
+    } else if (downloadUrl.includes('googleapis.com') && (downloadUrl.includes('templates/') || downloadUrl.includes('resumes/'))) {
+      // Handle cases where URL might have different format but contains our folder structure
+      try {
+        const url = new URL(downloadUrl);
+        const fullPath = url.pathname + url.search;
+        // Look for templates/ or resumes/ in the full path
+        const templateMatch = fullPath.match(/templates\/([^?&]+)/);
+        const resumeMatch = fullPath.match(/resumes\/([^?&]+)/);
+        
+        if (templateMatch) {
+          const path = `templates/${decodeURIComponent(templateMatch[1])}`;
+          console.log('Extracted template path (alternative method):', path);
+          return path;
+        } else if (resumeMatch) {
+          const path = `resumes/${decodeURIComponent(resumeMatch[1])}`;
+          console.log('Extracted resume path (alternative method):', path);
+          return path;
+        }
+      } catch (error) {
+        console.warn('Alternative path extraction failed:', error);
+      }
+    }
+    
+    console.warn('Could not parse storage URL format:', downloadUrl);
+    return null;
+  } catch (error) {
+    console.error('Error parsing storage URL:', error);
+    return null;
+  }
+};
+
+// --- Helper function to test storage connectivity ---
+const testStorageConnectivity = async (storage, user) => {
+  if (!storage || !user) return false;
+  
+  try {
+    // Try to create a simple reference to test if storage is accessible
+    const testRef = ref(storage, `test/${user.uid}/connectivity_test.txt`);
+    console.log('Storage reference created successfully:', testRef.toString());
+    return true;
+  } catch (error) {
+    console.error('Storage connectivity test failed:', error);
+    return false;
   }
 };
 
@@ -168,10 +254,32 @@ export default function App() {
       const app = initializeApp(firebaseConfig);
       const firestoreDb = getFirestore(app);
       const firebaseAuth = getAuth(app);
-      const firebaseStorage = getStorage(app);
+      
+      // Force storage to use the correct bucket URL with explicit gs:// prefix
+      let firebaseStorage;
+      try {
+        // Always use the explicit bucket URL to avoid any configuration issues
+        firebaseStorage = getStorage(app, `gs://${CORRECT_STORAGE_BUCKET}`);
+        console.log('Firebase Storage initialized with explicit bucket URL:', firebaseStorage.app.options.storageBucket);
+        console.log('Storage app name:', firebaseStorage.app.name);
+        console.log('Full storage config:', {
+          bucket: firebaseStorage.app.options.storageBucket,
+          projectId: firebaseStorage.app.options.projectId
+        });
+      } catch (storageError) {
+        console.error('Firebase Storage initialization error:', storageError);
+        // Fallback to default initialization
+        try {
+          firebaseStorage = getStorage(app);
+          console.log('Firebase Storage initialized with default config:', firebaseStorage.app.options.storageBucket);
+        } catch (fallbackError) {
+          console.error('Failed to initialize storage with fallback:', fallbackError);
+          firebaseStorage = null;
+        }
+      }
       
       // Validate that Firebase services were initialized properly
-      if (!firestoreDb || !firebaseAuth || !firebaseStorage) {
+      if (!firestoreDb || !firebaseAuth) {
         console.error('Failed to initialize Firebase services');
         setLoading(false);
         return;
@@ -730,7 +838,13 @@ export default function App() {
             onDelete={handleFeedbackDelete}
           />
         )}
-        {page === "templates" && <TemplatesSection />}
+        {page === "templates" && (
+          <TemplatesSection 
+            isAdmin={isAdmin} 
+            db={db} 
+            storage={storage} 
+          />
+        )}
         {page === "profile" && (
           <ProfilePage
             user={user}
@@ -791,6 +905,7 @@ function AuthScreen({ auth }) {
                 <li>Checking your internet connection</li>
                 <li>Clearing browser cache if the issue persists</li>
               </ul>
+              <br />
               <button 
                 onClick={() => window.location.reload()} 
                 className="btn btn-primary"
@@ -1022,14 +1137,64 @@ function ProfilePage({ user, profile, db, storage }) {
     }
   }, [profile]);
 
+  // Test storage connectivity when component mounts
+  useEffect(() => {
+    const runStorageTest = async () => {
+      if (storage && user) {
+        console.log('Testing storage connectivity...');
+        console.log('Storage bucket configured:', storage.app.options.storageBucket);
+        console.log('Environment variables:');
+        console.log('- REACT_APP_FIREBASE_STORAGE_BUCKET:', process.env.REACT_APP_FIREBASE_STORAGE_BUCKET);
+        console.log('- Actual bucket being used:', storage.app.options.storageBucket);
+        
+        const canConnect = await testStorageConnectivity(storage, user);
+        if (!canConnect) {
+          console.warn('Storage connectivity test failed - uploads may not work properly');
+        } else {
+          console.log('Storage connectivity test passed');
+        }
+      }
+    };
+    
+    runStorageTest();
+  }, [storage, user]);
+
   const handleFileChange = (e) => {
-    if (e.target.files[0] && e.target.files[0].type === "application/pdf") {
-      setFile(e.target.files[0]);
-      setMessage("");
-    } else {
+    const selectedFile = e.target.files[0];
+    
+    if (!selectedFile) {
       setFile(null);
-      setMessage("Please select a PDF file.");
+      setMessage("");
+      return;
     }
+    
+    // Validate file type
+    if (selectedFile.type !== "application/pdf") {
+      setFile(null);
+      setMessage("Please select a PDF file only.");
+      e.target.value = ''; // Clear the input
+      return;
+    }
+    
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    if (selectedFile.size > maxSize) {
+      setFile(null);
+      setMessage("File size must be less than 10MB. Please choose a smaller file.");
+      e.target.value = ''; // Clear the input
+      return;
+    }
+    
+    // Validate filename length
+    if (selectedFile.name.length > 100) {
+      setFile(null);
+      setMessage("Filename is too long. Please rename your file to be shorter than 100 characters.");
+      e.target.value = ''; // Clear the input
+      return;
+    }
+    
+    setFile(selectedFile);
+    setMessage("");
   };
 
   const handleProfileUpdate = async (e) => {
@@ -1040,44 +1205,188 @@ function ProfilePage({ user, profile, db, storage }) {
     const profileDocRef = doc(db, "profiles", user.uid);
 
     try {
+      // Update name first
       await setDoc(profileDocRef, { name: name }, { merge: true });
 
-      if (file) {
-        const storageRef = ref(storage, `resumes/${user.uid}/${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
+      if (file && storage) {
+        setMessage("Uploading resume...");
+        console.log('Storage bucket being used:', storage.app.options.storageBucket);
+        
+        // Delete old resume from storage if it exists
+        if (profile?.resumeUrl) {
+          try {
+            console.log('Current resume URL:', profile.resumeUrl);
+            
+            // Try multiple deletion approaches
+            let deleted = false;
+            
+            // Approach 1: Extract path from URL
+            const storagePath = getStoragePathFromUrl(profile.resumeUrl);
+            console.log('Extracted storage path:', storagePath);
+            if (storagePath) {
+              try {
+                const oldResumeRef = ref(storage, storagePath);
+                console.log('Old resume ref created:', oldResumeRef.toString());
+                await deleteObject(oldResumeRef);
+                console.log('Old resume deleted from storage successfully (method 1)');
+                deleted = true;
+              } catch (deleteError1) {
+                console.warn('Method 1 failed:', deleteError1);
+              }
+            }
+            
+            // Approach 2: Try creating reference directly from URL if first approach failed
+            if (!deleted) {
+              try {
+                // This method uses Firebase SDK's ability to create a reference from a download URL
+                const oldResumeRef = ref(storage, profile.resumeUrl);
+                await deleteObject(oldResumeRef);
+                console.log('Old resume deleted from storage successfully (method 2)');
+                deleted = true;
+              } catch (deleteError2) {
+                console.warn('Method 2 failed:', deleteError2);
+              }
+            }
+            
+            // Approach 3: Try extracting filename and using resumes folder path
+            if (!deleted && profile.resumeUrl.includes('resumes/')) {
+              try {
+                // Extract just the filename part after resumes/
+                const urlParts = profile.resumeUrl.split('resumes/');
+                if (urlParts.length > 1) {
+                  const filenamePart = urlParts[1].split('?')[0]; // Remove query parameters
+                  const resumePath = `resumes/${decodeURIComponent(filenamePart)}`;
+                  console.log('Trying resume path method 3:', resumePath);
+                  const oldResumeRef = ref(storage, resumePath);
+                  await deleteObject(oldResumeRef);
+                  console.log('Old resume deleted from storage successfully (method 3)');
+                  deleted = true;
+                }
+              } catch (deleteError3) {
+                console.warn('Resume deletion method 3 failed:', deleteError3);
+              }
+            }
+            
+            if (!deleted) {
+              console.warn('Could not delete old resume with any method. URL:', profile.resumeUrl);
+            }
+          } catch (deleteError) {
+            // If the old file doesn't exist or there's another error, log it but continue
+            console.warn('Could not delete old resume from storage:', deleteError);
+          }
+        }
+        
+        // Create a safe filename by removing spaces and special characters
+        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const timestamp = Date.now();
+        const storageRef = ref(storage, `resumes/${user.uid}/${timestamp}_${safeFileName}`);
+        
+        console.log('Storage reference created:', storageRef.toString());
+        
+        try {
+          console.log('Attempting direct upload first (CORS workaround)...');
+          
+          // Try direct upload first as it's more reliable with CORS
+          try {
+            setUploadProgress(25); // Show initial progress
+            console.log('Starting direct upload...');
+            const snapshot = await uploadBytes(storageRef, file);
+            setUploadProgress(75); // Show more progress
+            console.log('Direct upload successful, getting download URL...');
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            console.log('Download URL obtained:', downloadURL);
+            setUploadProgress(90); // Almost done
+            
+            await setDoc(
+              profileDocRef,
+              { 
+                resumeUrl: downloadURL, 
+                resumeFileName: file.name,
+                resumeUploadDate: Timestamp.fromDate(new Date())
+              },
+              { merge: true }
+            );
+            
+            setMessage("Profile and resume updated successfully!");
+            setFile(null);
+            setUploadProgress(0);
+            
+            // Clear the file input
+            const fileInput = document.getElementById('resume');
+            if (fileInput) fileInput.value = '';
+            
+          } catch (directUploadError) {
+            console.error("Direct upload failed:", directUploadError);
+            console.log('Falling back to resumable upload...');
+            
+            // Fallback to resumable upload
+            const uploadTask = uploadBytesResumable(storageRef, file);
 
-        uploadTask.on(
-          "state_changed",
-          (snapshot) => {
-            const progress =
-              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(progress);
-          },
-          (error) => {
-            console.error("Upload error:", error);
-            setMessage("Error uploading file.");
-          },
-          () => {
-            getDownloadURL(uploadTask.snapshot.ref).then(
-              async (downloadURL) => {
-                await setDoc(
-                  profileDocRef,
-                  { resumeUrl: downloadURL, resumeFileName: file.name },
-                  { merge: true }
-                );
-                setMessage("Profile updated successfully!");
-                setFile(null);
+            uploadTask.on(
+              "state_changed",
+              (snapshot) => {
+                const progress =
+                  (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(progress);
+                console.log('Upload progress:', progress.toFixed(1) + '%');
+              },
+              (error) => {
+                console.error("Resumable upload also failed:", error);
+                let errorMessage = "Upload failed. This may be due to network issues or browser security settings.";
+                
+                if (error.code === 'storage/unauthorized') {
+                  errorMessage = "You don't have permission to upload files. Please contact support.";
+                } else if (error.code === 'storage/quota-exceeded') {
+                  errorMessage = "Storage quota exceeded. Please contact support.";
+                } else if (error.message.includes('CORS')) {
+                  errorMessage = "Upload blocked by browser security policy. Try refreshing the page or using a different browser.";
+                }
+                
+                setMessage(errorMessage);
                 setUploadProgress(0);
+              },
+              async () => {
+                try {
+                  console.log('Resumable upload completed, getting download URL...');
+                  const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                  console.log('Download URL obtained:', downloadURL);
+                  await setDoc(
+                    profileDocRef,
+                    { 
+                      resumeUrl: downloadURL, 
+                      resumeFileName: file.name,
+                      resumeUploadDate: Timestamp.fromDate(new Date())
+                    },
+                    { merge: true }
+                  );
+                  setMessage("Profile and resume updated successfully!");
+                  setFile(null);
+                  setUploadProgress(0);
+                  
+                  // Clear the file input
+                  const fileInput = document.getElementById('resume');
+                  if (fileInput) fileInput.value = '';
+                } catch (error) {
+                  console.error("Error getting download URL or updating profile:", error);
+                  setMessage("Upload completed but failed to save. Please try again.");
+                  setUploadProgress(0);
+                }
               }
             );
           }
-        );
+        } catch (uploadError) {
+          console.error("Failed to start upload:", uploadError);
+          setMessage("Failed to start upload. Please check your internet connection and try again.");
+          setUploadProgress(0);
+        }
+      } else if (file && !storage) {
+        setMessage("Storage service unavailable. Please refresh the page and try again.");
       } else {
         setMessage("Profile name updated!");
       }
     } catch (error) {
       console.error("Error updating profile:", error);
-      setMessage("Error updating profile.");
+      setMessage("Error updating profile. Please try again.");
     }
   };
 
@@ -1102,27 +1411,75 @@ function ProfilePage({ user, profile, db, storage }) {
             />
           </div>
           <div className="form-group">
-            <label htmlFor="resume">Upload Resume (PDF only)</label>
+            <label htmlFor="resume">Upload Resume (PDF only, max 10MB)</label>
             <input
               type="file"
               id="resume"
               onChange={handleFileChange}
               accept=".pdf"
             />
-            {uploadProgress > 0 && (
-              <progress value={uploadProgress} max="100" />
+            <div className="resume-tips">
+              <small className="form-help-text">
+                💡 <strong>Tip:</strong> Your resume will be accessible via a secure link that you can share with employers. 
+                The "Email Company" feature will include a professional link to your resume automatically.
+              </small>
+            </div>
+            {file && (
+              <div className="file-info">
+                <p className="selected-file">
+                  Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              </div>
+            )}
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="upload-progress">
+                <progress value={uploadProgress} max="100" />
+                <span className="progress-text">{Math.round(uploadProgress)}% uploaded</span>
+              </div>
             )}
             {profile?.resumeUrl && (
-              <p className="current-resume">
-                Current Resume:{" "}
+              <div className="current-resume">
+                <p>Current Resume:</p>
                 <a
                   href={profile.resumeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="resume-link"
                 >
-                  {profile.resumeFileName || "View Resume"}
+                  <div className="resume-file-icon">
+                    📄
+                  </div>
+                  <div className="resume-file-details">
+                    <div className="resume-file-name">
+                      {profile.resumeFileName || "My Resume"}
+                    </div>
+                    <div className="resume-file-type">
+                      PDF Document
+                    </div>
+                  </div>
                 </a>
-              </p>
+                <div className="resume-actions">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(profile.resumeUrl);
+                      setMessage("Resume link copied to clipboard!");
+                      setTimeout(() => setMessage(""), 3000);
+                    }}
+                    className="btn btn-secondary copy-link-btn"
+                  >
+                    📋 Copy Resume Link
+                  </button>
+                  <small className="resume-help-text">
+                    Use this link to share your resume via email, messaging apps, or social media.
+                  </small>
+                </div>
+                {profile.resumeUploadDate && (
+                  <p className="upload-date">
+                    Uploaded: {profile.resumeUploadDate.toDate().toLocaleDateString()}
+                  </p>
+                )}
+              </div>
             )}
           </div>
           {message && (
@@ -1352,6 +1709,11 @@ function HteCard({
     isExpired ? "expired-text" : "active-text"
   }`;
 
+  // Function to detect if user is on mobile device
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
   const createGmailLink = () => {
     const companyName = hte.name;
     const contactPerson = hte.contactPerson || "Hiring Manager";
@@ -1383,10 +1745,12 @@ function HteCard({
         }
       }
       
-      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-        to
-      )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      return gmailUrl;
+      // For mobile devices, use Gmail app deep link, otherwise use web Gmail
+      if (isMobileDevice()) {
+        return `googlegmail://co?to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      } else {
+        return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      }
     } else {
       // Student email template (existing)
       const studentName =
@@ -1395,17 +1759,64 @@ function HteCard({
 
       let resumeLine = "";
       if (profile?.resumeUrl) {
-        resumeLine = `You can view my resume here: ${profile.resumeUrl}`;
+        resumeLine = `I have attached my resume for your review. You can access it through this link:
+
+Resume Link: ${profile.resumeUrl}
+
+Alternatively, I would be happy to send my resume as an email attachment if you prefer.`;
       } else {
-        resumeLine = "I would be happy to provide my resume upon your request.";
+        resumeLine = "I would be happy to provide my resume upon your request via email or through any preferred method.";
       }
 
-      const body = `Dear ${contactPerson},\n\nI hope this email finds you well.\n\nMy name is ${studentName}, and I am a student from Polytechnic University of the Philippines. I am writing to express my strong interest in an internship opportunity at ${companyName}, which I found on our school's InternIskolar portal.\n\n${resumeLine}\n\nThank you for your time and consideration.\n\nSincerely,\n${studentName}`;
+      const body = `Dear ${contactPerson},
 
-      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-        to
-      )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      return gmailUrl;
+I hope this email finds you well.
+
+My name is ${studentName}, and I am a student from Polytechnic University of the Philippines. I am writing to express my strong interest in an internship opportunity at ${companyName}, which I found through our school's InternIskolar portal.
+
+${resumeLine}
+
+I am eager to contribute to your organization and gain valuable experience in your industry. I would welcome the opportunity to discuss how my skills and enthusiasm can benefit your team.
+
+Thank you for your time and consideration. I look forward to hearing from you.
+
+Sincerely,
+${studentName}
+Polytechnic University of the Philippines`;
+
+      // For mobile devices, use Gmail app deep link, otherwise use web Gmail
+      if (isMobileDevice()) {
+        return `googlegmail://co?to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      } else {
+        return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      }
+    }
+  };
+
+  // Function to handle email button click with fallback
+  const handleEmailClick = (e) => {
+    e.preventDefault();
+    const emailUrl = createGmailLink();
+    
+    if (isMobileDevice() && emailUrl.startsWith('googlegmail://')) {
+      // Try to open Gmail app first
+      window.location.href = emailUrl;
+      
+      // Fallback to mailto after a short delay if Gmail app doesn't open
+      setTimeout(() => {
+        const companyName = hte.name;
+        const to = hte.email;
+        const studentName = profile?.name || "[Your Full Name]";
+        const subject = isAdmin ? 
+          `PUP OJT Program - ${companyName}` : 
+          `Internship Application - ${studentName}`;
+        
+        const mailtoUrl = `mailto:${to}?subject=${encodeURIComponent(subject)}`;
+        window.location.href = mailtoUrl;
+      }, 1000);
+    } else {
+      // Open in browser (desktop or mobile fallback)
+      window.open(emailUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -1480,14 +1891,12 @@ function HteCard({
             <ExternalLink size={16} /> View MOA
           </a>
         )}
-        <a
-          href={createGmailLink()}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={handleEmailClick}
           className="btn btn-success email-btn"
         >
           <Mail size={16} /> Email Company
-        </a>
+        </button>
         {isAdmin && (
           <div className="admin-actions">
             <button onClick={() => onEdit(hte)} className="icon-btn">
@@ -1836,7 +2245,7 @@ function AdminAnalytics({ analytics, allHtes, openModal }) {
                       <span>{item.applications} applications</span>
                     </div>
                   </div>
-                </div>
+                               </div>
               ))}
             </div>
           ) : (
@@ -1902,80 +2311,243 @@ function AdminAnalytics({ analytics, allHtes, openModal }) {
   );
 }
 
-function TemplatesSection() {
-  const templates = [
-    {
-      name: "OJT-MOA HTE x PUP_VPAA_2024",
-      url: "/templates/OJT-MOA HTE x PUP_VPAA_2024.docx",
-    },
-    {
-      name: "PUP Internship Agreement 2024",
-      url: "/templates/PUP Internship Agreement 2024.docx",
-    },
-    {
-      name: "PUP Consent Form 2024",
-      url: "/templates/PUP Consent Form_2024.docx",
-    },
-    {
-      name: "Declaration of Medical Information and Data Subject Consent Form",
-      url: "/templates/Declaration-of-Medical-Information-and-Data-Subject-Consent-Form.pdf",
-    },
-    {
-      name: "Intent Letter (for 1 student)",
-      url: "/templates/Intent Letter_for 1 student.docx",
-    },
-    {
-      name: "Intent Letter (for 2 or more students)",
-      url: "/templates/Intent Letter_for 2 or more students.docx",
-    },
-    {
-      name: "PUP Medical Health Information Form for Students 2022",
-      url: "/templates/PUP-Medical-Health-Information-Form-for-Students-2022.pdf",
-    },
-    {
-      name: "Daily Time Record (DTR)",
-      url: "/templates/Daily Time Record (DTR).docx",
-    },
-    {
-      name: "Weekly Accomplishment Report Template",
-      url: "/templates/Weekly Accomplishment Report_Template.docx",
-    },
-    {
-      name: "Evaluation Instrument for Training Supervisor",
-      url: "/templates/EVALUATION-INSTRUMENT-for-TRAINING-SUPERVISOR_FINAL.docx",
-    },
-    {
-      name: "Evaluation Instrument for HTE (for Students)",
-      url: "/templates/Evaluation-Instrument-for-HTE_Final-FOR-STUDENTS.docx",
-    },
-    {
-      name: "Overtime Agreement Template",
-      url: "/templates/OVERTIME AGREEMENT TEMPLATE.docx",
-    },
-    {
-      name: "Guidelines for Submission of OJT Portfolio",
-      url: "/templates/GUIDELINES-FOR-SUBMISSION-OF-OJT-PORTFOLIO.pdf",
-    },
-    { name: "Insurance Information", url: "/templates/insurance.pdf" },
-  ];
+function TemplatesSection({ isAdmin, db, storage }) {
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [uploadingTemplate, setUploadingTemplate] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Fetch templates from Firestore
+  useEffect(() => {
+    if (!db) return;
+
+    const templatesRef = collection(db, "templates");
+    const unsubscribe = onSnapshot(templatesRef, (snapshot) => {
+      const templatesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Sort templates by name
+      templatesData.sort((a, b) => a.name.localeCompare(b.name));
+      setTemplates(templatesData);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [db]);
+
+  const handleUploadTemplate = async (templateData) => {
+    if (!storage || !db) return;
+
+    setUploadingTemplate(true);
+    setUploadProgress(0);
+
+    try {
+      const file = templateData.file;
+      const templateName = templateData.name;
+      
+      // Create a reference to the file in Firebase Storage
+      const fileName = `${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, `templates/${fileName}`);
+      
+      // Upload file with progress tracking
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
+        },
+        (error) => {
+          console.error('Error uploading template:', error);
+          alert('Error uploading template. Please try again.');
+          setUploadingTemplate(false);
+        },
+        async () => {
+          // Upload completed successfully
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          
+          // Save template metadata to Firestore
+          await addDoc(collection(db, "templates"), {
+            name: templateName,
+            fileName: file.name,
+            downloadURL: downloadURL,
+            uploadedAt: Timestamp.now(),
+            uploadedBy: templateData.uploadedBy || 'Admin'
+          });
+          
+          setIsUploadModalOpen(false);
+          setUploadingTemplate(false);
+          setUploadProgress(0);
+        }
+      );
+    } catch (error) {
+      console.error('Error uploading template:', error);
+      alert('Error uploading template. Please try again.');
+      setUploadingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId, downloadURL) => {
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
+
+    try {
+      // Delete from Firestore first
+      await deleteDoc(doc(db, "templates", templateId));
+      
+      // Delete from Firebase Storage if downloadURL exists
+      if (downloadURL && storage) {
+        try {
+          console.log('Template download URL:', downloadURL);
+          console.log('Storage bucket:', storage.app.options.storageBucket);
+          
+          // Try multiple deletion approaches
+          let deleted = false;
+          
+          // Approach 1: Extract path from URL
+          const storagePath = getStoragePathFromUrl(downloadURL);
+          console.log('Extracted template storage path:', storagePath);
+          if (storagePath) {
+            try {
+              const storageRef = ref(storage, storagePath);
+              console.log('Template storage ref created:', storageRef.toString());
+              console.log('Template storage ref fullPath:', storageRef.fullPath);
+              await deleteObject(storageRef);
+              console.log('Template file deleted from storage successfully (method 1)');
+              deleted = true;
+            } catch (deleteError1) {
+              console.warn('Template deletion method 1 failed:', deleteError1);
+              console.warn('Error code:', deleteError1.code);
+              console.warn('Error message:', deleteError1.message);
+            }
+          }
+          
+          // Approach 2: Try creating reference directly from URL if first approach failed
+          if (!deleted) {
+            try {
+              const storageRef = ref(storage, downloadURL);
+              await deleteObject(storageRef);
+              console.log('Template file deleted from storage successfully (method 2)');
+              deleted = true;
+            } catch (deleteError2) {
+              console.warn('Template deletion method 2 failed:', deleteError2);
+            }
+          }
+          
+          // Approach 3: Try extracting filename and using templates folder path
+          if (!deleted && downloadURL.includes('templates/')) {
+            try {
+              // Extract just the filename part after templates/
+              const urlParts = downloadURL.split('templates/');
+              if (urlParts.length > 1) {
+                const filenamePart = urlParts[1].split('?')[0]; // Remove query parameters
+                const templatePath = `templates/${decodeURIComponent(filenamePart)}`;
+                console.log('Trying template path method 3:', templatePath);
+                const storageRef = ref(storage, templatePath);
+                await deleteObject(storageRef);
+                console.log('Template file deleted from storage successfully (method 3)');
+                deleted = true;
+              }
+            } catch (deleteError3) {
+              console.warn('Template deletion method 3 failed:', deleteError3);
+            }
+          }
+          
+          if (!deleted) {
+            console.warn('Could not delete template file with any method. URL:', downloadURL);
+          }
+        } catch (storageError) {
+          // If the file doesn't exist in storage or there's another error, log it but don't fail the operation
+          console.warn('Could not delete template file from storage:', storageError);
+        }
+      }
+      
+      alert('Template deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      alert('Error deleting template. Please try again.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="page-heading">Downloadable Templates</h1>
+        <div className="loading-screen">
+          <span className="loading-text">Loading templates...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1 className="page-heading">Downloadable Templates</h1>
+      {isAdmin && (
+        <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+          <button
+            onClick={() => setIsUploadModalOpen(true)}
+            className="btn btn-primary add-hte-btn"
+          >
+            <PlusCircle size={20} />
+            Add Template
+          </button>
+        </div>
+      )}
+      
       <div className="templates-container">
-        <ul>
-          {templates.map((template, index) => (
-            <li key={index}>
-              <div>
-                <FileText className="template-icon" />
-                <span>{template.name}</span>
-              </div>
-              <a href={template.url} download className="btn btn-success">
-                Download
-              </a>
-            </li>
-          ))}
-        </ul>
+        {templates.length === 0 ? (
+          <div className="no-results">
+            <FileText size={48} />
+            <p>No templates available at the moment.</p>
+            {isAdmin && (
+              <p>Click "Add Template" to upload the first template.</p>
+            )}
+          </div>
+        ) : (
+          <ul>
+            {templates.map((template) => (
+              <li key={template.id}>
+                <div>
+                  <FileText className="template-icon" />
+                  <span>{template.name}</span>
+                </div>
+                <div className="template-actions">
+                  <a 
+                    href={template.downloadURL} 
+                    download={template.fileName}
+                    className="btn btn-success"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink size={16} />
+                    Download
+                  </a>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDeleteTemplate(template.id, template.downloadURL)}
+                      className="icon-btn danger"
+                      title="Delete Template"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
+
+      {isUploadModalOpen && (
+        <TemplateUploadModal
+          closeModal={() => setIsUploadModalOpen(false)}
+          onUpload={handleUploadTemplate}
+          uploading={uploadingTemplate}
+          uploadProgress={uploadProgress}
+        />
+      )}
     </div>
   );
 }
@@ -2115,6 +2687,129 @@ function HteFormModal({
   );
 }
 
+function TemplateUploadModal({ closeModal, onUpload, uploading, uploadProgress }) {
+  const [templateData, setTemplateData] = useState({
+    name: '',
+    file: null
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setTemplateData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setTemplateData(prev => ({
+        ...prev,
+        file: file,
+        name: prev.name || file.name.replace(/\.[^/.]+$/, "") // Use filename without extension as default name
+      }));
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!templateData.name.trim() || !templateData.file) {
+      alert('Please provide both a template name and file.');
+      return;
+    }
+
+    onUpload({
+      name: templateData.name.trim(),
+      file: templateData.file,
+      uploadedBy: 'Admin'
+    });
+  };
+
+  const isFormValid = templateData.name.trim() && templateData.file && !uploading;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h2>Upload New Template</h2>
+          <button onClick={closeModal} className="close-btn" disabled={uploading}>
+            <X size={24} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <div>
+              <label htmlFor="templateName">Template Name</label>
+              <input
+                type="text"
+                name="name"
+                id="templateName"
+                value={templateData.name}
+                onChange={handleInputChange}
+                placeholder="e.g., PUP Internship Agreement 2025"
+                required
+                disabled={uploading}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="templateFile">Template File</label>
+              <input
+                type="file"
+                name="file"
+                id="templateFile"
+                onChange={handleFileChange}
+                accept=".pdf,.doc,.docx,.txt"
+                required
+                disabled={uploading}
+              />
+              <p className="form-help-text">
+                Supported formats: PDF, Word documents (.doc, .docx), Text files (.txt)
+              </p>
+            </div>
+
+            {templateData.file && (
+              <div className="file-info">
+                <p className="selected-file">
+                  Selected: {templateData.file.name} ({(templateData.file.size / 1024 / 1024).toFixed(2)} MB)
+                </p>
+              </div>
+            )}
+
+            {uploading && (
+              <div className="upload-progress">
+                <div className="progress-text">
+                  Uploading... {Math.round(uploadProgress)}%
+                </div>
+                <progress value={uploadProgress} max="100"></progress>
+              </div>
+            )}
+          </div>
+          
+          <div className="modal-footer">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="btn btn-secondary"
+              disabled={uploading}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={!isFormValid}
+            >
+              {uploading ? 'Uploading...' : 'Upload Template'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ContactPage({
   user,
   profile,
@@ -2166,9 +2861,15 @@ function ContactPage({
         </div>
 
         <div className="contact-stats">
-          <span className="contact-total">{feedbackRequests.length} total requests</span>
+          <div className="contact-stat-item">
+            <div className="contact-stat-number">{feedbackRequests.length}</div>
+            <div className="contact-stat-label">Total Requests</div>
+          </div>
           {unreadCount > 0 && (
-            <span className="contact-unread">{unreadCount} unread</span>
+            <div className="contact-stat-item unread">
+              <div className="contact-stat-number">{unreadCount}</div>
+              <div className="contact-stat-label">Unread</div>
+            </div>
           )}
         </div>
 
