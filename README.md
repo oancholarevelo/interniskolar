@@ -1,17 +1,18 @@
-# 🎓 InternIskolar - PUP OJT Portal
+# 🎓 InternIskolar - OJT Portal
 
-A web portal for Polytechnic University of the Philippines (PUP) students to find internship opportunities and track their applications. Administrators can manage partner companies and their MOA agreements.
+A web portal for university students to find internship opportunities and track their applications. Administrators can manage partner companies and their MOA agreements.
 
 ## What is InternIskolar?
 
-InternIskolar is a centralized platform where PUP students can browse available internship opportunities at partner companies (Host Training Establishments or HTEs) and track their application progress. The system also helps administrators manage company partnerships and MOA (Memorandum of Agreement) renewals.
+InternIskolar is a centralized platform where university students can browse available internship opportunities at partner companies (Host Training Establishments or HTEs) and track their application progress. The system also helps administrators manage company partnerships and MOA (Memorandum of Agreement) renewals.
 
 ## How It Works
 
 ### For Students
 
 1. **Sign Up & Login**
-   - Register using your PUP email (@pup.edu.ph or @iskolarngbayan.pup.edu.ph)
+   - Students: Register using your university email (@iskolarngbayan.pup.edu.ph) or Gmail (@gmail.com)
+   - Administrators: Must use institutional email (@pup.edu.ph)
    - Verify your email to access the portal
 
 2. **Browse Companies**
@@ -121,7 +122,9 @@ InternIskolar is a centralized platform where PUP students can browse available 
 ## Getting Started
 
 1. Visit the portal website
-2. Sign up with your PUP email address
+2. Sign up with your email address:
+   - Students: Use your university email or Gmail
+   - Administrators: Use institutional email only
 3. Verify your email through the link sent to your inbox
 4. Complete your profile with your name and upload your resume
 5. Start browsing companies and tracking your applications!
@@ -130,9 +133,9 @@ InternIskolar is a centralized platform where PUP students can browse available 
 
 If you need help or want to report issues:
 - Use the Contact page in the portal to submit feedback
+- Contact the developer: [LinkedIn](https://www.linkedin.com/in/oliver-revelo/) or oancholarevelo@gmail.com
 - Report bugs or request new features
-- Contact the PUP CCIS department for technical support
 
 ---
 
-*Developed by Oliver A. Revelo for PUP students*
+*Developed by Oliver A. Revelo for PUP - ITECH students*
