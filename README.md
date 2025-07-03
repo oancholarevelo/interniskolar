@@ -56,11 +56,15 @@ InternIskolar is a centralized platform where PUP students can browse available 
    - Delete outdated partnerships
    - Track MOA expiration dates
 
+<<<<<<< HEAD
 2. **Analytics Dashboard**
    - View total registered students
    - Monitor active vs expired MOAs
    - See which companies are most popular
    - Track application statistics across all students
+=======
+Visit the live application: [PUP OJT Portal](https://interniskolar.vercel.app)
+>>>>>>> 5614748a70714c98cc506f4f76ae489428e0b103
 
 3. **MOA Management**
    - Get alerts for expiring MOAs (30, 60, 90 day warnings)
@@ -113,6 +117,11 @@ InternIskolar is a centralized platform where PUP students can browse available 
 - **Deployment**: Vercel
 - **Email Integration**: Gmail compose links
 - **File Support**: PDF uploads for resumes and templates
+
+## Links
+
+- **Live Website**: [InternIskolar Portal](https://interniskolar.vercel.app)
+- **GitHub Repository**: [https://github.com/oancholarevelo/interniskolar](https://github.com/oancholarevelo/interniskolar)
 ## Getting Started
 
 1. Visit the portal website
