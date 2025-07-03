@@ -405,6 +405,9 @@ export default function App() {
           const twentyFourHours = 24 * 60 * 60 * 1000;
           if (Date.now() - registrationData.timestamp > twentyFourHours) {
             localStorage.removeItem('pendingRegistration');
+            // Also clean up the email-specific key
+            const emailSpecificKey = `registrationName_${registrationData.email}`;
+            localStorage.removeItem(emailSpecificKey);
           }
         } catch (parseError) {
           // If we can't parse the stored data, remove it
@@ -487,15 +490,17 @@ export default function App() {
               const profileSnapshot = await getDoc(profileDocRef);
               
               if (!profileSnapshot.exists()) {
-                // Check if we have a stored name from registration in localStorage
-                const storedRegistrationData = localStorage.getItem('pendingRegistration');
+                // Check multiple sources for the user's name
                 let finalName = extractNameFromEmail(currentUser.email); // fallback
                 
+                // 1. Check localStorage for recent registration data
+                const storedRegistrationData = localStorage.getItem('pendingRegistration');
                 if (storedRegistrationData) {
                   try {
                     const registrationData = JSON.parse(storedRegistrationData);
                     if (registrationData.name && registrationData.email === currentUser.email) {
                       finalName = registrationData.name;
+                      console.log('Using name from localStorage:', finalName);
                       // Clear the stored data after use
                       localStorage.removeItem('pendingRegistration');
                     }
@@ -504,6 +509,17 @@ export default function App() {
                   }
                 }
                 
+                // 2. Check for email-specific storage (more persistent)
+                const emailSpecificKey = `registrationName_${currentUser.email}`;
+                const emailSpecificName = localStorage.getItem(emailSpecificKey);
+                if (emailSpecificName) {
+                  finalName = emailSpecificName;
+                  console.log('Using name from email-specific storage:', finalName);
+                  // Clear after use
+                  localStorage.removeItem(emailSpecificKey);
+                }
+                
+                console.log('Creating profile with name:', finalName);
                 await setDoc(profileDocRef, {
                   name: finalName,
                   resumeUrl: "",
@@ -1250,6 +1266,12 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
           name: name.trim(),
           timestamp: Date.now()
         }));
+        
+        // Also store with email-specific key for more persistent storage
+        const emailSpecificKey = `registrationName_${userCredential.user.email}`;
+        localStorage.setItem(emailSpecificKey, name.trim());
+        
+        console.log('Registration data stored for:', userCredential.user.email, 'with name:', name.trim());
         
         // Store user info for verification screen, then sign out
         setPendingVerification({
