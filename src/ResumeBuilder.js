@@ -19,6 +19,7 @@ const ResumeBuilder = () => {
   const [honors, setHonors] = useState([]);
   const [languages, setLanguages] = useState([]);
   const [references, setReferences] = useState([]);
+  const [pdfMessage, setPdfMessage] = useState({ text: '', type: '' });
   
   const previewRef = useRef(null);
 
@@ -351,9 +352,29 @@ const ResumeBuilder = () => {
       }
 
       doc.save(`${(name || 'resume').toLowerCase().replace(/ /g, '_')}.pdf`);
+      
+      // Show success message encouraging profile upload
+      setPdfMessage({
+        text: '🎉 Your resume is ready! Now upload it to your profile to share with employers.',
+        type: 'success'
+      });
+      
+      // Clear message after 10 seconds
+      setTimeout(() => {
+        setPdfMessage({ text: '', type: '' });
+      }, 10000);
+      
     } catch (error) {
       console.error("Failed to generate PDF:", error);
-      alert("An error occurred while generating the PDF. Please check the console for details.");
+      setPdfMessage({
+        text: 'An error occurred while generating the PDF. Please try again.',
+        type: 'error'
+      });
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setPdfMessage({ text: '', type: '' });
+      }, 5000);
     }
   };
 
@@ -682,6 +703,11 @@ const ResumeBuilder = () => {
               >
                 Download as PDF
               </button>
+              {pdfMessage.text && (
+                <div className={`pdf-message ${pdfMessage.type}`}>
+                  {pdfMessage.text}
+                </div>
+              )}
             </div>
           </div>
         </div>
