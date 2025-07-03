@@ -130,6 +130,7 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh; /* Use dynamic viewport height for better mobile support */
   background: linear-gradient(to bottom right, #800000, var(--accent-color));
   padding: 1rem;
   box-sizing: border-box;
@@ -141,10 +142,20 @@ body {
   bottom: 0;
 }
 
+/* Mobile-specific adjustments for better centering */
+@media (max-width: 767px) {
+  .auth-screen {
+    padding: 0.5rem;
+    justify-content: flex-start;
+    padding-top: 10vh; /* Add some top spacing but not too much */
+  }
+}
+
 .auth-container {
   width: 100%;
   max-width: 400px;
   max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem); /* Use dynamic viewport height */
   padding: 1.5rem;
   background-color: white;
   border-radius: 1rem;
@@ -153,6 +164,17 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  margin: auto; /* Ensure centering */
+}
+
+/* Mobile-specific container adjustments */
+@media (max-width: 767px) {
+  .auth-container {
+    max-height: calc(100dvh - 1rem);
+    padding: 1rem;
+    margin-top: 0;
+    margin-bottom: auto;
+  }
 }
 
 @media (min-width: 640px) {
@@ -221,6 +243,16 @@ body {
   padding: 0.75rem 1rem;
   border: 1px solid var(--medium-gray);
   border-radius: 0.5rem;
+  font-size: 16px; /* Prevents zoom on iOS devices */
+  -webkit-appearance: none; /* Remove iOS styling */
+  appearance: none;
+}
+
+/* Ensure consistent input styling across devices */
+.auth-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
 .auth-button {
@@ -1737,6 +1769,15 @@ progress {
   left: 0;
   right: 0;
   text-align: center;
+}
+
+/* Mobile-specific footer adjustments */
+@media (max-width: 767px) {
+  .auth-footer {
+    position: relative;
+    margin-top: 2rem;
+    margin-bottom: 0;
+  }
 }
 
 .auth-footer-text {
