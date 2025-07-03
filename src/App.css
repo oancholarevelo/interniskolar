@@ -111,6 +111,14 @@ body {
   overflow-x: hidden;
 }
 
+/* Prevent body scroll when verification screen is active */
+body:has(.verify-screen) {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
 /* --- App Container --- */
 .app-container {
   min-height: 100vh;
@@ -204,14 +212,13 @@ body {
   justify-content: center;
   min-height: 100vh;
   min-height: 100dvh; /* Use dynamic viewport height for better mobile support */
-  height: 100vh; /* Ensure full coverage */
-  height: 100dvh; /* Dynamic viewport height for mobile */
   width: 100vw;
   width: 100dvw; /* Ensure full width coverage */
   background: linear-gradient(to bottom right, #800000, var(--accent-color));
   padding: 2rem 1rem; /* More balanced padding */
   box-sizing: border-box;
-  overflow: auto;
+  overflow-y: auto; /* Allow vertical scrolling when content is too tall */
+  overflow-x: hidden; /* Prevent horizontal overflow */
   position: fixed;
   top: 0;
   left: 0;
@@ -227,14 +234,13 @@ body {
 /* Mobile-specific adjustments for better centering and spacing */
 @media (max-width: 767px) {
   .auth-screen {
-    padding: 1.5rem 1rem 4rem 1rem; /* Add bottom padding for footer space */
-    justify-content: center; /* Center the container */
+    padding: 1rem 1rem 5rem 1rem; /* Add more bottom padding for footer space */
+    justify-content: center; /* Start from top on mobile to allow scrolling */
+    padding-top: 2rem; /* Add top padding for breathing room */
     background-attachment: scroll; /* Better for mobile performance */
     /* Force full coverage on tall mobile devices */
     min-height: 100vh;
     min-height: 100dvh;
-    height: 100vh;
-    height: 100dvh;
   }
 }
 
@@ -296,36 +302,41 @@ body {
   border-radius: 1rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
-  overflow-y: auto;
+  overflow: visible; /* Remove scrollbar */
   display: flex;
   flex-direction: column;
   margin: auto; /* Ensure centering */
   position: relative; /* Helps with footer positioning */
+  min-height: auto; /* Allow natural height adjustment */
 }
 
 /* Mobile-specific container adjustments */
 @media (max-width: 767px) {
   .auth-container {
-    max-height: calc(100dvh - 6rem); /* Account for screen padding and footer */
+    max-height: none; /* Remove height restriction on mobile */
     padding: 1.25rem;
-    margin: 0 auto; /* Center horizontally */
+    margin: 1rem auto; /* Center horizontally with some margin */
     min-height: auto; /* Allow natural height adjustment */
+    overflow: visible; /* Ensure no scrollbar */
   }
 }
 
 /* Very small mobile screens */
 @media (max-width: 479px) {
   .auth-container {
-    max-height: calc(100dvh - 5rem);
+    max-height: none; /* Remove height restriction */
     padding: 1rem;
     max-width: 350px;
+    margin: 1rem auto; /* Add margin for breathing room */
+    overflow: visible; /* Ensure no scrollbar */
   }
 }
 
 @media (min-width: 640px) {
   .auth-container {
     padding: 2rem;
-    max-height: calc(100vh - 4rem);
+    max-height: none; /* Remove height restriction on desktop too */
+    overflow: visible; /* Ensure no scrollbar */
   }
 }
 
@@ -373,6 +384,8 @@ body {
   gap: 1rem;
   margin-top: 1rem;
   flex-shrink: 0;
+  width: 100%;
+  min-height: 0; /* Allow the form to shrink if needed */
 }
 
 @media (min-width: 640px) {
@@ -380,6 +393,14 @@ body {
     gap: 1.5rem;
     margin-top: 1.5rem;
   }
+}
+
+/* Ensure alert messages in auth form don't cause layout issues */
+.auth-form .alert {
+  margin: 0;
+  flex-shrink: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .auth-input {
@@ -397,7 +418,108 @@ body {
 .auth-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(129, 8, 6, 0.1);
+}
+
+/* Registration form specific styling */
+.auth-form input[type="text"] {
+  background: linear-gradient(135deg, #fefefe, #f8f9fa);
+  border: 2px solid var(--medium-gray);
+  transition: all 0.3s ease;
+}
+
+.auth-form input[type="text"]:focus {
+  background: white;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(129, 8, 6, 0.1);
+}
+
+.auth-form input[type="password"] {
+  background: linear-gradient(135deg, #fefefe, #f8f9fa);
+  border: 2px solid var(--medium-gray);
+  transition: all 0.3s ease;
+}
+
+.auth-form input[type="password"]:focus {
+  background: white;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(129, 8, 6, 0.1);
+}
+
+/* Enhanced styling for form validation feedback */
+.auth-form input.error {
+  border-color: var(--danger-color);
+  background: linear-gradient(135deg, #fef2f2, #fee2e2);
+}
+
+.auth-form input.error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* Specific styling for date inputs to fix iOS Safari width issues */
+.modal-body input[type="date"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--medium-gray);
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  /* Fix for iOS Safari date input width issues */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-color: white;
+  position: relative;
+}
+
+.modal-body input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.modal-body input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Additional iOS-specific fixes */
+@media screen and (-webkit-min-device-pixel-ratio: 1) {
+  .modal-body input[type="date"] {
+    /* Ensure consistent width on iOS devices */
+    min-width: 0;
+    max-width: 100%;
+    flex-shrink: 1;
+  }
+}
+
+/* iPhone 11 specific viewport fixes */
+@media screen and (max-width: 414px) and (max-height: 896px) {
+  .modal-body input[type="date"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.75rem;
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+}
+
+/* General iOS Safari date input fixes */
+@media screen and (-webkit-min-device-pixel-ratio: 2) {
+  .modal-body input[type="date"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.65rem 0.75rem;
+    margin: 0;
+    border: 1px solid var(--medium-gray);
+    border-radius: 0.5rem;
+    font-size: 16px; /* Prevent zoom on iOS */
+    line-height: 1.5;
+    background-color: white;
+  }
 }
 
 .auth-button {
@@ -488,16 +610,31 @@ body {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
   text-align: center;
   padding: 1rem;
+  overflow: hidden; /* Prevent scrolling */
+  position: fixed; /* Lock the screen in place */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--light-gray); /* Ensure background covers full screen */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .verify-container {
   max-width: 450px;
+  width: calc(100% - 2rem); /* Ensure space on left and right */
+  max-height: 90vh; /* Prevent container from being too tall */
+  max-height: 90dvh; /* Dynamic viewport height for mobile */
+  overflow-y: auto; /* Allow scrolling within container if needed */
   padding: 2rem;
   background-color: white;
   border-radius: 1rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  margin: 0 1rem; /* Add horizontal margin for mobile */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .verify-icon {
@@ -532,6 +669,19 @@ body {
 @media (min-width: 640px) {
   .verify-actions {
     flex-direction: row;
+  }
+}
+
+/* Mobile-specific styles for verification screen */
+@media (max-width: 639px) {
+  .verify-screen {
+    padding: 0.75rem;
+  }
+  
+  .verify-container {
+    width: calc(100% - 1.5rem);
+    margin: 0 0.75rem;
+    padding: 1.5rem;
   }
 }
 
@@ -975,6 +1125,23 @@ body {
   }
 }
 
+/* iPhone 11 and similar device specific fixes */
+@media screen and (max-width: 414px) and (max-height: 896px) {
+  .modal-overlay {
+    padding: 0.5rem;
+    align-items: flex-start;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+}
+
+/* Additional mobile viewport fixes */
+@media screen and (max-width: 414px) {
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+}
+
 .modal-content {
   background-color: white;
   border-radius: 0.75rem;
@@ -986,6 +1153,45 @@ body {
   flex-direction: column;
   margin: auto;
   min-height: auto;
+}
+
+/* Mobile-specific modal form fixes */
+@media screen and (max-width: 414px) {
+  .modal-content {
+    margin: 1rem 0.5rem;
+    max-width: calc(100vw - 1rem);
+    width: calc(100vw - 1rem);
+  }
+  
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .modal-body div {
+    margin-bottom: 0.5rem;
+  }
+  
+  .modal-body input {
+    padding: 0.75rem 0.75rem;
+    font-size: 16px; /* Prevent zoom on iOS */
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .modal-footer {
+    padding: 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .modal-footer button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .modal-header {
@@ -1061,12 +1267,6 @@ body {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.modal-body input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
-}
-
 /* Ensure the form itself doesn't have conflicting styles */
 .modal-content form {
   display: flex;
@@ -1074,6 +1274,45 @@ body {
   min-height: 0;
   /* Apply to form as well to ensure it respects the flex container's boundaries */
   flex-grow: 1;
+}
+
+/* Mobile-specific modal form fixes */
+@media screen and (max-width: 414px) {
+  .modal-content {
+    margin: 1rem 0.5rem;
+    max-width: calc(100vw - 1rem);
+    width: calc(100vw - 1rem);
+  }
+  
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .modal-body div {
+    margin-bottom: 0.5rem;
+  }
+  
+  .modal-body input {
+    padding: 0.75rem 0.75rem;
+    font-size: 16px; /* Prevent zoom on iOS */
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .modal-footer {
+    padding: 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .modal-footer button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .modal-footer {
@@ -1825,7 +2064,7 @@ body {
 .form-group textarea:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(129, 8, 6, 0.1);
   background-color: white;
 }
 
@@ -2437,41 +2676,6 @@ body {
 .metric-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-
-.metric-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.metric-header h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--dark-gray);
-}
-
-.metric-icon {
-  width: 24px;
-  height: 24px;
-}
-
-.metric-icon.students {
-  color: var(--primary-color);
-}
-
-.metric-icon.active {
-  color: var(--success-color);
-}
-
-.metric-icon.expired {
-  color: var(--danger-color);
-}
-
-.metric-icon.warning {
-  color: #f59e0b;
 }
 
 .metric-value {

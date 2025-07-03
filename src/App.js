@@ -9,6 +9,7 @@ import {
   signInWithEmailAndPassword,
   sendEmailVerification,
   signOut,
+  applyActionCode,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -317,8 +318,100 @@ export default function App() {
     }
   }, [auth]);
 
+  // Handle Firebase action codes (email verification, password reset, etc.)
+  useEffect(() => {
+    const handleActionCode = async () => {
+      if (!auth) return;
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const mode = urlParams.get('mode');
+      const oobCode = urlParams.get('oobCode');
+      
+      console.log('Checking URL for action codes:', { mode, oobCode: !!oobCode });
+      
+      if (mode === 'verifyEmail' && oobCode) {
+        console.log('Processing email verification action code...');
+        try {
+          // Apply the email verification action code
+          await applyActionCode(auth, oobCode);
+          console.log('Email verification action code applied successfully');
+          
+          // Clear the URL parameters
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          // Show success message
+          setVerificationMessage({
+            text: 'Email verification successful! Please sign in to continue.',
+            type: 'success'
+          });
+          
+          // Clear the message after 8 seconds
+          setTimeout(() => {
+            setVerificationMessage({ text: '', type: '' });
+          }, 8000);
+          
+          // Clear any pending verification state
+          setPendingVerification(null);
+          
+          // If user is currently logged in, reload their auth state
+          if (auth.currentUser) {
+            console.log('Email verification completed, reloading user auth state...');
+            await auth.currentUser.reload();
+            setVerificationMessage({
+              text: 'Email verified! Welcome to InternIskolar!',
+              type: 'success'
+            });
+            
+            // Clear the message after successful reload
+            setTimeout(() => {
+              setVerificationMessage({ text: '', type: '' });
+            }, 3000);
+          }
+        } catch (error) {
+          console.error('Error applying action code:', error);
+          let errorMessage = 'Email verification failed. Please try again or contact support.';
+          
+          if (error.code === 'auth/invalid-action-code') {
+            errorMessage = 'This verification link has expired or is invalid. Please request a new verification email.';
+          } else if (error.code === 'auth/user-disabled') {
+            errorMessage = 'This account has been disabled. Please contact support.';
+          } else if (error.code === 'auth/user-not-found') {
+            errorMessage = 'User account not found. Please register again.';
+          }
+          
+          setVerificationMessage({
+            text: errorMessage,
+            type: 'error'
+          });
+          
+          // Clear the error message after 10 seconds
+          setTimeout(() => {
+            setVerificationMessage({ text: '', type: '' });
+          }, 10000);
+        }
+      }
+    };
+    
+    handleActionCode();
+  }, [auth]);
+
   useEffect(() => {
     try {
+      // Clean up old registration data (older than 24 hours)
+      const storedRegistrationData = localStorage.getItem('pendingRegistration');
+      if (storedRegistrationData) {
+        try {
+          const registrationData = JSON.parse(storedRegistrationData);
+          const twentyFourHours = 24 * 60 * 60 * 1000;
+          if (Date.now() - registrationData.timestamp > twentyFourHours) {
+            localStorage.removeItem('pendingRegistration');
+          }
+        } catch (parseError) {
+          // If we can't parse the stored data, remove it
+          localStorage.removeItem('pendingRegistration');
+        }
+      }
+      
       // Validate Firebase config before initialization
       if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
         console.error('Firebase configuration is incomplete:', {
@@ -394,9 +487,25 @@ export default function App() {
               const profileSnapshot = await getDoc(profileDocRef);
               
               if (!profileSnapshot.exists()) {
-                const extractedName = extractNameFromEmail(currentUser.email);
+                // Check if we have a stored name from registration in localStorage
+                const storedRegistrationData = localStorage.getItem('pendingRegistration');
+                let finalName = extractNameFromEmail(currentUser.email); // fallback
+                
+                if (storedRegistrationData) {
+                  try {
+                    const registrationData = JSON.parse(storedRegistrationData);
+                    if (registrationData.name && registrationData.email === currentUser.email) {
+                      finalName = registrationData.name;
+                      // Clear the stored data after use
+                      localStorage.removeItem('pendingRegistration');
+                    }
+                  } catch (parseError) {
+                    console.warn("Error parsing stored registration data:", parseError);
+                  }
+                }
+                
                 await setDoc(profileDocRef, {
-                  name: extractedName,
+                  name: finalName,
                   resumeUrl: "",
                   shortlist: []
                 });
@@ -441,7 +550,7 @@ export default function App() {
         alert(userMessage);
       }
     }
-  }, []);
+  }, [pendingVerification]);
 
   // Fetch user profile data (including shortlist) with error handling
   useEffect(() => {
@@ -1023,6 +1132,8 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -1087,6 +1198,24 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
       return;
     }
     
+    // Additional validation for registration
+    if (!isLogin) {
+      if (!name.trim()) {
+        setError("Please enter your full name.");
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        setError("Passwords do not match. Please try again.");
+        return;
+      }
+      
+      if (password.length < 6) {
+        setError("Password should be at least 6 characters long.");
+        return;
+      }
+    }
+    
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
@@ -1099,8 +1228,8 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
         
         // Custom verification settings for better user experience
         const actionCodeSettings = {
-          url: 'https://interniskolar.vercel.app/?emailVerified=true',
-          handleCodeInApp: false,
+          url: 'https://interniskolar.vercel.app',
+          handleCodeInApp: false, // Let Firebase handle it on web, then redirect
           iOS: {
             bundleId: 'com.pup.internskolar'
           },
@@ -1115,10 +1244,18 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
           "Verification email sent! Please check your inbox to continue."
         );
         
+        // Store registration data in localStorage for later use
+        localStorage.setItem('pendingRegistration', JSON.stringify({
+          email: userCredential.user.email,
+          name: name.trim(),
+          timestamp: Date.now()
+        }));
+        
         // Store user info for verification screen, then sign out
         setPendingVerification({
           email: userCredential.user.email,
-          uid: userCredential.user.uid
+          uid: userCredential.user.uid,
+          name: name.trim() // Store the name for later use
         });
         await signOut(auth);
       }
@@ -1154,6 +1291,16 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
           <p>{isLogin ? "Sign in to your account" : "Create a new account"}</p>
         </div>
         <form onSubmit={handleAuthAction} className="auth-form">
+          {!isLogin && (
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Full Name"
+              required
+              className="auth-input"
+            />
+          )}
           <input
             type="email"
             value={email}
@@ -1170,6 +1317,16 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
             required
             className="auth-input"
           />
+          {!isLogin && (
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm Password"
+              required
+              className="auth-input"
+            />
+          )}
           {error && (
             <div className="alert error">
               <AlertTriangle className="alert-icon" />
@@ -1199,6 +1356,8 @@ function AuthScreen({ auth, setPendingVerification, verificationMessage }) {
               setIsLogin(!isLogin);
               setError("");
               setMessage("");
+              setName("");
+              setConfirmPassword("");
             }}
             className="auth-toggle-button"
           >
@@ -1238,8 +1397,8 @@ function VerifyEmailScreen({ user, onLogout, auth, setPendingVerification }) {
       if (isRealUser) {
         // User is still logged in, can resend directly
         const actionCodeSettings = {
-          url: 'https://interniskolar.vercel.app/?emailVerified=true',
-          handleCodeInApp: false,
+          url: 'https://interniskolar.vercel.app',
+          handleCodeInApp: false, // Let Firebase handle it on web, then redirect
           iOS: {
             bundleId: 'com.pup.internskolar'
           },
