@@ -154,10 +154,30 @@ export default function App() {
 
   useEffect(() => {
     try {
+      // Validate Firebase config before initialization
+      if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+        console.error('Firebase configuration is incomplete:', {
+          hasApiKey: !!firebaseConfig.apiKey,
+          hasAuthDomain: !!firebaseConfig.authDomain,
+          hasProjectId: !!firebaseConfig.projectId
+        });
+        setLoading(false);
+        return;
+      }
+
+      console.log('Initializing Firebase...');
       const app = initializeApp(firebaseConfig);
       const firestoreDb = getFirestore(app);
       const firebaseAuth = getAuth(app);
       const firebaseStorage = getStorage(app);
+      
+      // Validate that Firebase services were initialized properly
+      if (!firestoreDb || !firebaseAuth || !firebaseStorage) {
+        console.error('Failed to initialize Firebase services');
+        setLoading(false);
+        return;
+      }
+
       setDb(firestoreDb);
       setAuth(firebaseAuth);
       setStorage(firebaseStorage);
@@ -201,7 +221,19 @@ export default function App() {
       return () => unsubscribe();
     } catch (error) {
       console.error("Error initializing Firebase:", error);
-      if (error.code !== "duplicate-app") setLoading(false);
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      
+      // Set a user-friendly error message for display
+      setLoading(false);
+      
+      // Don't try to continue if Firebase initialization failed
+      if (error.code !== "duplicate-app") {
+        alert("Failed to connect to the application. Please refresh the page and try again.");
+      }
     }
   }, []);
 
@@ -600,6 +632,17 @@ export default function App() {
         </div>
       </div>
     );
+    
+  // If auth service is not available, show error
+  if (!auth && !loading) 
+    return (
+      <div className="loading-screen">
+        <div className="loading-text">
+          Failed to initialize. Please refresh the page.
+        </div>
+      </div>
+    );
+    
   if (!user) return <AuthScreen auth={auth} />;
   if (!user.emailVerified)
     return <VerifyEmailScreen user={user} onLogout={handleLogout} />;
@@ -698,10 +741,35 @@ function AuthScreen({ auth }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  // Show error if auth is not available
+  if (!auth) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-container">
+          <div className="auth-header">
+            <GraduationCap className="auth-icon" />
+            <h1>InternIskolar</h1>
+            <p>Connection Error</p>
+          </div>
+          <div className="alert error">
+            <AlertTriangle className="alert-icon" />
+            <span>Unable to connect to authentication service. Please refresh the page and try again.</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleAuthAction = async (e) => {
     e.preventDefault();
     setError("");
     setMessage("");
+    
+    // Check if auth is properly initialized
+    if (!auth) {
+      setError("Authentication service is not available. Please refresh the page and try again.");
+      return;
+    }
     
     // Allow @pup.edu.ph, @iskolarngbayan.pup.edu.ph, and @gmail.com
     const isValidEmail = 
@@ -732,7 +800,25 @@ function AuthScreen({ auth }) {
         await signOut(auth);
       }
     } catch (err) {
-      setError(err.message);
+      console.error("Authentication error:", err);
+      
+      // Provide user-friendly error messages
+      let errorMessage = err.message;
+      if (err.code === "auth/user-not-found") {
+        errorMessage = "No account found with this email address.";
+      } else if (err.code === "auth/wrong-password") {
+        errorMessage = "Incorrect password. Please try again.";
+      } else if (err.code === "auth/email-already-in-use") {
+        errorMessage = "An account with this email address already exists.";
+      } else if (err.code === "auth/weak-password") {
+        errorMessage = "Password should be at least 6 characters long.";
+      } else if (err.code === "auth/invalid-email") {
+        errorMessage = "Please enter a valid email address.";
+      } else if (err.code === "auth/too-many-requests") {
+        errorMessage = "Too many failed attempts. Please try again later.";
+      }
+      
+      setError(errorMessage);
     }
   };
 
