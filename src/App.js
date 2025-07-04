@@ -67,17 +67,15 @@ import {
 } from "lucide-react";
 
 // --- Firebase Configuration ---
-// Force correct storage bucket regardless of environment variables
-const CORRECT_STORAGE_BUCKET = "pup-internship.firebasestorage.app";
 
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyAIc6oFOBknpItFeHuw9qMhrNOzNjns5kk",
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "pup-internship.firebaseapp.com",
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "pup-internship",
-  storageBucket: CORRECT_STORAGE_BUCKET, // Force correct bucket
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "742208522282",
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:742208522282:web:7b4e0e4f8c8e3f3ed75b53",
-  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-JZDCXXLHJ8",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
 };
 
 // Configuration loaded successfully
@@ -443,7 +441,7 @@ export default function App() {
       let firebaseStorage;
       try {
         // Always use the explicit bucket URL to avoid any configuration issues
-        firebaseStorage = getStorage(app, `gs://${CORRECT_STORAGE_BUCKET}`);
+        firebaseStorage = getStorage(app, `gs://${process.env.REACT_APP_FIREBASE_STORAGE_BUCKET}`);
         // Storage initialized successfully
       } catch (storageError) {
         console.error('Firebase Storage initialization error:', storageError);
